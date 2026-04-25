@@ -1,0 +1,3 @@
+from .categoricalproposal import CategoricalProposal
+from .dirichletproposal import DirichletProposal
+from .multivariatenormalproposal import MultivariateNormalProposal
