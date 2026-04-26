@@ -28,9 +28,18 @@ class DeltaTest(TestCase):
         loc = torch.tensor([0.0, 0.0, 0.0])
         d = Delta(loc)
 
+        self.assertEqual(d.batch_shape, ())
+        self.assertEqual(d.event_shape, (3,))
+
         d_expanded = d.expand((10,))
         self.assertEqual(d_expanded.batch_shape, (10,))
         self.assertEqual(d_expanded.event_shape, (3,))
+
+        s = d_expanded.sample()
+        self.assertEqual(s.shape, (10, 3))
+
+        s = d_expanded.sample(sample_shape=(100,))
+        self.assertEqual(s.shape, (100, 10, 3))
 
     def test_log_prob(self):
         loc = torch.tensor([0.0, 0.0, 0.0])

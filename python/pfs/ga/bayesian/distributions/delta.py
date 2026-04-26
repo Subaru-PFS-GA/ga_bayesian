@@ -43,7 +43,13 @@ class Delta(Distribution):
     #endregion
 
     def expand(self, batch_shape, _instance=None):
-        raise NotImplementedError()
+        new = self._get_checked_instance(Delta, _instance)
+        batch_shape = batch_shape + self.batch_shape
+        event_shape = self.event_shape
+        new.__loc = self.__loc.expand(batch_shape + event_shape)
+        super(Delta, new).__init__(batch_shape, event_shape, validate_args=False)
+        new._validate_args = self._validate_args
+        return new
 
     def rsample(self, sample_shape=()):
         shape = self._extended_shape(sample_shape)
