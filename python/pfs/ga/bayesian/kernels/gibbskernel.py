@@ -1,5 +1,6 @@
 import torch
 from ..kernel import Kernel
+from ..deterministic import Deterministic
 
 class GibbsKernel(Kernel):
     def __init__(self, model):
@@ -17,6 +18,18 @@ class GibbsKernel(Kernel):
             self.accept(init_state, step_state, lp_init, lp_final)
             step.update(step_state)
             final_state.update(step_state)
+
+        # Recompute deterministic values after updates to keep derived state consistent.
+        combined_state = { **init_state, **final_state }
+        for site in self.model.sites.values():
+            if isinstance(site, Deterministic):
+                site.eval(combined_state)
+
+        final_state.update({
+            site.name: combined_state[site.name]
+            for site in self.model.sites.values()
+            if isinstance(site, Deterministic)
+        })
 
         # TODO: record trace
 
