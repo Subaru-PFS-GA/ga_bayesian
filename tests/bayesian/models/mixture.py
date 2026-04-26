@@ -11,26 +11,23 @@ class Mixture(Model):
     def __init__(self, N=Constants.MISSING, C=Constants.MISSING, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
+        K = 2
         N = N if N is not Constants.MISSING else (100,)
         C = C if C is not Constants.MISSING else ()
 
-        self.K = 2
-        self.N = N
-        self.C = C
-
         # p(w)
-        self.w = self.variable('w', Dirichlet(5.0 * torch.ones(self.K)).expand(self.C))
+        self.w = self.variable('w', Dirichlet(5.0 * torch.ones(K)).expand(C))
 
         # p(theta_k) for each population
-        self.theta_1 = self.variable('theta_1', lambda state: Uniform(-1.0, 1.0, validate_args=False).expand(self.C))
-        self.theta_2 = self.variable('theta_2', lambda state: Uniform(2.0, 3.0, validate_args=False).expand(self.C))
+        self.theta_1 = self.variable('theta_1', lambda state: Uniform(-1.0, 1.0, validate_args=False).expand(C))
+        self.theta_2 = self.variable('theta_2', lambda state: Uniform(2.0, 3.0, validate_args=False).expand(C))
 
         # p(z_i | w) for each data point
-        self.z = self.variable('z', lambda state: Categorical(self.w.value(state)).expand(self.N + self.C))
+        self.z = self.variable('z', lambda state: Categorical(self.w.value(state)).expand(N + C))
 
         # p(x_ik | theta_k, z_i) for each data point and population
-        self.x_1 = self.variable('x_1', lambda state: Normal(self.theta_1.value(state), 1.0).expand(self.N + self.C))
-        self.x_2 = self.variable('x_2', lambda state: Normal(self.theta_2.value(state), 3.0).expand(self.N + self.C))
+        self.x_1 = self.variable('x_1', lambda state: Normal(self.theta_1.value(state), 1.0).expand(N + C))
+        self.x_2 = self.variable('x_2', lambda state: Normal(self.theta_2.value(state), 3.0).expand(N + C))
 
         # x_i = (x_i1, x_i2)[z_i] for each data point
         self.x = self.deterministic('x', self.eval_x)

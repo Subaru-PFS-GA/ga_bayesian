@@ -6,3 +6,4 @@ from .deterministic import Deterministic
 from .observed import Observed
 from .step import Step
 from .proposal import Proposal
+from .mcmc import MCMC
