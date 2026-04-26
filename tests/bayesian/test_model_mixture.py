@@ -100,43 +100,32 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.z, blanket_w)
 
         blanket_theta_1 = model.markov_blanket(model.theta_1)
-        self.assertEqual(len(blanket_theta_1), 4)
+        self.assertEqual(len(blanket_theta_1), 1)
         self.assertIn(model.x_1, blanket_theta_1)
-        self.assertIn(model.z, blanket_theta_1)
-        self.assertIn(model.x, blanket_theta_1)
-        self.assertIn(model.x_2, blanket_theta_1)
-        self.assertNotIn(model.obs, blanket_theta_1)
 
         blanket_theta_2 = model.markov_blanket(model.theta_2)
-        self.assertEqual(len(blanket_theta_2), 4)
+        self.assertEqual(len(blanket_theta_2), 1)
         self.assertIn(model.x_2, blanket_theta_2)
-        self.assertIn(model.z, blanket_theta_2)
-        self.assertIn(model.x, blanket_theta_2)
-        self.assertIn(model.x_1, blanket_theta_2)
-        self.assertNotIn(model.obs, blanket_theta_2)
 
         blanket_z = model.markov_blanket(model.z)
-        self.assertEqual(len(blanket_z), 5)
+        self.assertEqual(len(blanket_z), 4)
         self.assertIn(model.w, blanket_z)
         self.assertIn(model.x_1, blanket_z)
         self.assertIn(model.x_2, blanket_z)
-        self.assertIn(model.x, blanket_z)
         self.assertIn(model.obs, blanket_z)
 
         blanket_x_1 = model.markov_blanket(model.x_1)
-        self.assertEqual(len(blanket_x_1), 5)
+        self.assertEqual(len(blanket_x_1), 4)
         self.assertIn(model.theta_1, blanket_x_1)
         self.assertIn(model.x_2, blanket_x_1)
         self.assertIn(model.z, blanket_x_1)
-        self.assertIn(model.x, blanket_x_1)
         self.assertIn(model.obs, blanket_x_1)
 
         blanket_x_2 = model.markov_blanket(model.x_2)
-        self.assertEqual(len(blanket_x_2), 5)
+        self.assertEqual(len(blanket_x_2), 4)
         self.assertIn(model.theta_2, blanket_x_2)
         self.assertIn(model.x_1, blanket_x_2)
         self.assertIn(model.z, blanket_x_2)
-        self.assertIn(model.x, blanket_x_2)
         self.assertIn(model.obs, blanket_x_2)
 
         blanket_x = model.markov_blanket(model.x)
@@ -147,11 +136,10 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.obs, blanket_x)
 
         blanket_obs = model.markov_blanket(model.obs)
-        self.assertEqual(len(blanket_obs), 4)
+        self.assertEqual(len(blanket_obs), 3)
         self.assertIn(model.x_1, blanket_obs)
         self.assertIn(model.x_2, blanket_obs)
         self.assertIn(model.z, blanket_obs)
-        self.assertIn(model.x, blanket_obs)
 
     # def test_log_prob(self):
     #     def log_prob_helper(N=(100,), C=()):

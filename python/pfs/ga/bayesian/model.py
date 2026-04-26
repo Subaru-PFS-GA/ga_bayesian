@@ -345,7 +345,7 @@ class Model():
                 input_values=values,
                 selector=indices,
             )
-            
+
             for parent in parents:
                 parent.children.append(s)
 
@@ -540,17 +540,16 @@ class Model():
         """
         Return the Markov blanket for one site or a set of sites.
 
-        The Markov blanket includes:
-        - Stochastic parents of the query site(s)
-        - All deterministic nodes that are connected to the query site(s)
-          through a chain of deterministic nodes
-        - All stochastic children of the query site(s)
-        - All stochastic descendants of the query site(s) that are connected
-          through a chain of deterministic nodes
-        - All co-parents of the stochastic descendants described above
-        - All deterministic descendants of the query site(s) that are
-          connected to a stochastic descendant through a chain of deterministic nodes
-        - All stochastic parents of the deterministic descendants described above
+        For each query site X, MB(X) = parents(X) U children(X) U coparents(X),
+        where deterministic chains directly connected to X are traversed to reach
+        stochastic nodes:
+        - parents: follow deterministic chains upward from X's direct parents
+        - children: follow deterministic chains downward from X's direct children
+        - coparents: for each stochastic child C, follow deterministic chains upward
+          from C's direct parents
+
+        Deterministic chains are only traversed when directly attached to the query
+        node (or to a stochastic child). Traversal stops at stochastic boundaries.
 
         Parameters:
         -----------
@@ -558,77 +557,61 @@ class Model():
             The site(s) for which to compute the Markov blanket.
         include_sites: bool, optional
             Whether to include the query site(s) themselves in the returned blanket. Default is False.
-
-        For each query site X, MB(X) = parents(X) U children(X) U parents(children(X)).
-        When multiple query sites are provided, the result is the union of blankets.
         """
 
         query_sites = self.__as_sites(sites)
         query_set = set(query_sites)
-
         blanket = set()
 
-        def deterministic_closure(seed_sites):
+        def stochastic_ancestors(site):
             """
-            Compute the closure of deterministic nodes reachable from the seed sites.
-
-            This is used to find all deterministic ancestors and descendants that can
-            connect stochastic nodes in the Markov blanket.
+            Follow deterministic chains upward from site's parents to collect stochastic ancestors.
+            Stops at stochastic nodes without traversing through them.
             """
-            closure = set()
-            frontier = list(seed_sites)
-
+            result = set()
+            visited = set()
+            frontier = list(site.parents)
             while frontier:
-                current_det = frontier.pop()
-                if current_det in closure:
+                current = frontier.pop()
+                if id(current) in visited:
                     continue
-                closure.add(current_det)
+                visited.add(id(current))
+                if isinstance(current, Deterministic):
+                    frontier.extend(current.parents)
+                else:
+                    result.add(current)
+            return result
 
-                for parent in current_det.parents:
-                    if isinstance(parent, Deterministic):
-                        frontier.append(parent)
-
-                for child in current_det.children:
-                    if isinstance(child, Deterministic):
-                        frontier.append(child)
-
-            return closure
+        def stochastic_children(site):
+            """
+            Follow deterministic chains downward from site's children to collect stochastic children.
+            Stops at stochastic nodes without traversing through them.
+            """
+            result = set()
+            visited = set()
+            frontier = list(site.children)
+            while frontier:
+                current = frontier.pop()
+                if id(current) in visited:
+                    continue
+                visited.add(id(current))
+                if isinstance(current, Deterministic):
+                    frontier.extend(current.children)
+                else:
+                    result.add(current)
+            return result
 
         for query_site in query_sites:
-            blanket.update(query_site.parents)
+            # Parents: follow deterministic chains upward from direct parents
+            blanket.update(stochastic_ancestors(query_site))
 
-            # Deterministic parents can hide additional random ancestors.
-            det_parents = [ parent for parent in query_site.parents if isinstance(parent, Deterministic) ]
-            det_parent_closure = deterministic_closure(det_parents)
-            for det_site in det_parent_closure:
-                blanket.add(det_site)
-                blanket.update(det_site.parents)
+            # Children: follow deterministic chains downward from direct children
+            children = stochastic_children(query_site)
+            blanket.update(children)
 
-            for child in query_site.children:
-                if isinstance(child, Deterministic):
-                    # Traverse deterministic chain in both directions and include
-                    # first stochastic descendants and their co-parents.
-                    det_child_closure = deterministic_closure([child])
-                    for det_site in det_child_closure:
-                        blanket.add(det_site)
-                        blanket.update(det_site.parents)
-
-                        for det_child in det_site.children:
-                            if not isinstance(det_child, Deterministic):
-                                blanket.add(det_child)
-                                blanket.update(det_child.parents)
-                else:
-                    blanket.add(child)
-                    blanket.update(child.parents)
-
-                    # If a stochastic child feeds deterministic transforms, those
-                    # deterministic nodes and their parents are part of the blanket,
-                    # but stochastic descendants beyond that are not.
-                    det_grandchildren = [grandchild for grandchild in child.children if isinstance(grandchild, Deterministic)]
-                    det_grandchild_closure = deterministic_closure(det_grandchildren)
-                    for det_site in det_grandchild_closure:
-                        blanket.add(det_site)
-                        blanket.update(det_site.parents)
+            # Co-parents: for each stochastic child, follow deterministic chains upward from its parents
+            for child in children:
+                blanket.update(stochastic_ancestors(child))
 
         if include_sites:
             blanket.update(query_set)
