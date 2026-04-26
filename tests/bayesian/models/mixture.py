@@ -2,6 +2,7 @@ import torch
 
 from pfs.ga.bayesian import Constants
 from pfs.ga.bayesian import Model
+from pfs.ga.bayesian import torch_extensions
 from pfs.ga.bayesian.distributions import Uniform, Dirichlet, Categorical, Normal
 from pfs.ga.bayesian.proposals import CategoricalProposal, NormalProposal
 
@@ -41,7 +42,7 @@ class Mixture(Model):
         z = self.z.value(state)
         x_1 = self.x_1.value(state)
         x_2 = self.x_2.value(state)
-        x = torch.gather(torch.stack([x_1, x_2], dim=-1), dim=-1, index=z.unsqueeze(-1)).squeeze(-1)
+        x = torch.select([x_1, x_2], z)
         return x
 
     def sample(self, state):
@@ -72,7 +73,8 @@ class Mixture(Model):
         # Initialize the proposal for z to the initial weights
         # The weights vector need to be repeated for each data point
         z = self.z.value(init_state)
-        w = torch.tile(self.w.value(init_state), (z.shape[0],) + z.ndim * (1,))
+        w = self.w.value(init_state)
+        w = w.expand(z.shape[:1] + w.shape)
         self.proposal_z = self.proposal('z', CategoricalProposal(w))
         self.step_z = self.step('z', self.propose_z, self.update_z, self.log_prob_z)
 
@@ -134,7 +136,7 @@ class Mixture(Model):
         
         lp_1 = self.x_1.log_prob(state)
         lp_2 = self.x_2.log_prob(state)
-        lp += torch.gather(torch.stack([lp_1, lp_2], dim=-1), dim=-1, index=z.unsqueeze(-1)).squeeze(-1)
+        lp += torch.select([lp_1, lp_2], z)
 
         lp += self.obs.log_prob(state)
 
