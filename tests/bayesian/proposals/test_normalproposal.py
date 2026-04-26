@@ -6,7 +6,7 @@ from pfs.ga.bayesian.proposals import NormalProposal
 
 class NormalProposalTest(TestCase):
     def test_init(self):
-        proposal = NormalProposal(None, None, torch.tensor(1.0), torch.tensor(2.0))
+        proposal = NormalProposal(torch.tensor(1.0), torch.tensor(2.0))
 
         self.assertEqual(proposal.gamma, 0.99)
         self.assertEqual(proposal.loc.shape, torch.Size([]))
@@ -14,7 +14,7 @@ class NormalProposalTest(TestCase):
         self.assertEqual(proposal.eps, 1e-4)
 
     def test_sample(self):
-        proposal = NormalProposal(None, None, torch.tensor(0.0), torch.tensor(1.0))
+        proposal = NormalProposal(torch.tensor(0.0), torch.tensor(1.0))
 
         s = proposal.sample()
         self.assertEqual(s.shape, ())
@@ -23,7 +23,7 @@ class NormalProposalTest(TestCase):
         self.assertEqual(s.shape, (100,))
 
     def test_update(self):
-        proposal = NormalProposal(None, None, torch.tensor(0.0), torch.tensor(1.0), gamma=0.5)
+        proposal = NormalProposal(torch.tensor(0.0), torch.tensor(1.0), gamma=0.5)
 
         proposal.update(torch.tensor(2.0))
 
