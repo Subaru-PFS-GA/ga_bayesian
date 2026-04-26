@@ -44,6 +44,11 @@ class Proposal():
     
     gamma = property(__get_gamma)
 
+    def __get_dist(self):
+        return self.__dist
+
+    dist = property(__get_dist)
+
     def __get_batch_shape(self):
         return self.__dist.batch_shape
     
