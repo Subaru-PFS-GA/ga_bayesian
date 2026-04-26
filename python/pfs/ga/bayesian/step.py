@@ -1,13 +1,17 @@
 class Step():
     def __init__(
-            self,
-            name,
-            propose_func,
-            update_func,
-            log_prob_func,
-        ):
+        self,
+        name,
+        sites, /,
+        proposal,
+        propose_func,
+        update_func,
+        log_prob_func,
+    ):
         
         self.__name = name
+        self.__sites = sites
+        self.__proposal = proposal
         self.__propose_func = propose_func
         self.__update_func = update_func
         self.__log_prob_func = log_prob_func
@@ -18,6 +22,16 @@ class Step():
         return self.__name
     
     name = property(__get_name)
+
+    def __get_sites(self):
+        return self.__sites
+    
+    sites = property(__get_sites)
+
+    def __get_proposal(self):
+        return self.__proposal
+    
+    proposal = property(__get_proposal)
 
     #endregion
     

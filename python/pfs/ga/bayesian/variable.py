@@ -3,10 +3,10 @@ from torch.distributions import Distribution
 from .site import Site
 
 class Variable(Site):
-    def __init__(self, name, dist):
+    def __init__(self, name, dist, parents=None, children=None, plates=None):
         self.__dist = dist
 
-        super().__init__(name)
+        super().__init__(name, parents=parents, children=children, plates=plates)
 
     #region Properties
 
@@ -57,6 +57,9 @@ class Variable(Site):
 
     def value(self, state):
         return state[self.name]
+    
+    def shape(self, state):
+        return state[self.name].shape
     
     def log_prob(self, state):
         dist = self.__get_dist(state)
