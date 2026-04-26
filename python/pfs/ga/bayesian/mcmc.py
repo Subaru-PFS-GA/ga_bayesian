@@ -1,5 +1,5 @@
-from ..constants import Constants
-from ..defaults import Defaults
+from .constants import Constants
+from .defaults import Defaults
 
 class MCMC():
     def __init__(

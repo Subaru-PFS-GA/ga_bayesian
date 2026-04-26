@@ -1,7 +1,7 @@
 import torch
 import unittest
 
-from pfs.ga.bayesian.mcmc import GibbsKernel
+from pfs.ga.bayesian.kernels import GibbsKernel
 
 from .models import Simple
 

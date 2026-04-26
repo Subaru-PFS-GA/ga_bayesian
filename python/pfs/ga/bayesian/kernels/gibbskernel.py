@@ -1,5 +1,5 @@
 import torch
-from .kernel import Kernel
+from ..kernel import Kernel
 
 class GibbsKernel(Kernel):
     def __init__(self, model):
