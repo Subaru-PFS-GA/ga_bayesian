@@ -1,14 +1,14 @@
 import torch
 from unittest import TestCase
 
-from pfs.ga.bayesian.mcmc.proposals import MultivariateNormalProposal
+from pfs.ga.bayesian.proposals import MultivariateNormalProposal
 
 
 class MultivariateNormalProposalTest(TestCase):
 	def test_init(self):
 		loc = torch.tensor([0.0, 1.0])
 		cov = torch.tensor([[1.0, 0.2], [0.2, 2.0]])
-		proposal = MultivariateNormalProposal(loc, cov)
+		proposal = MultivariateNormalProposal(None, None, loc, cov)
 
 		self.assertEqual(proposal.gamma, 0.99)
 		self.assertTrue(torch.equal(proposal.loc, loc))
@@ -19,7 +19,7 @@ class MultivariateNormalProposalTest(TestCase):
 	def test_sample(self):
 		loc = torch.tensor([0.0, 1.0])
 		cov = torch.tensor([[1.0, 0.2], [0.2, 2.0]])
-		proposal = MultivariateNormalProposal(loc, cov)
+		proposal = MultivariateNormalProposal(None, None, loc, cov)
 
 		sample = proposal.sample()
 		self.assertEqual(sample.shape, (2,))
@@ -30,7 +30,7 @@ class MultivariateNormalProposalTest(TestCase):
 	def test_update(self):
 		loc = torch.tensor([0.0, 1.0])
 		cov = torch.tensor([[1.0, 0.2], [0.2, 2.0]])
-		proposal = MultivariateNormalProposal(loc.clone(), cov.clone(), gamma=0.5)
+		proposal = MultivariateNormalProposal(None, None, loc.clone(), cov.clone(), gamma=0.5)
 
 		original_loc = proposal.loc.clone()
 		original_chol = proposal.chol.clone()
@@ -42,6 +42,8 @@ class MultivariateNormalProposalTest(TestCase):
 
 	def test_update_loc(self):
 		proposal = MultivariateNormalProposal(
+			None,
+			None,
 			torch.tensor([0.0, 1.0]),
 			torch.tensor([[1.0, 0.2], [0.2, 2.0]]),
 		)
@@ -55,6 +57,8 @@ class MultivariateNormalProposalTest(TestCase):
 
 	def test_update_cov(self):
 		proposal = MultivariateNormalProposal(
+			None,
+			None,
 			torch.tensor([0.0, 1.0]),
 			torch.tensor([[1.0, 0.2], [0.2, 2.0]]),
 		)
@@ -70,6 +74,8 @@ class MultivariateNormalProposalTest(TestCase):
 
 	def test_update_chol(self):
 		proposal = MultivariateNormalProposal(
+			None,
+			None,
 			torch.tensor([0.0, 1.0]),
 			torch.tensor([[1.0, 0.2], [0.2, 2.0]]),
 		)

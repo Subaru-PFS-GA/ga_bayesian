@@ -1,18 +1,19 @@
 import torch
 from unittest import TestCase
 
-from pfs.ga.bayesian.mcmc.proposals import CategoricalProposal
+from pfs.ga.bayesian import Constants, Defaults
+from pfs.ga.bayesian.proposals import CategoricalProposal
 
 class CategoricalProposalTest(TestCase):
     def test_init(self):
         w = torch.tensor([0.2, 0.7, 0.1])
-        proposal = CategoricalProposal(w)
-        self.assertEqual(proposal.gamma, 0.999)
+        proposal = CategoricalProposal(None, None, w)
+        self.assertEqual(proposal.gamma, Defaults.proposal_gamma)
         self.assertIsNotNone(proposal.w)
 
     def test_sample(self):
         w = torch.tensor([0.2, 0.7, 0.1])
-        proposal = CategoricalProposal(w)
+        proposal = CategoricalProposal(None, None, w)
 
         s = proposal.sample()
         self.assertEqual(s.shape, ())
@@ -22,7 +23,7 @@ class CategoricalProposalTest(TestCase):
 
     def test_update(self):
         w = torch.tensor([0.2, 0.7, 0.1])
-        proposal = CategoricalProposal(w)
+        proposal = CategoricalProposal(None, None, w)
 
         s = proposal.sample(shape=(100,))
 

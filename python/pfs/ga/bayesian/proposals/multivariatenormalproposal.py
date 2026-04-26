@@ -1,8 +1,10 @@
 import numpy as np
 import torch
 
+from ..constants import Constants
+from ..defaults import Defaults
 from ..distributions import MultivariateNormal
-from .proposal import Proposal
+from ..proposal import Proposal
 
 class MultivariateNormalProposal(Proposal):
     """
@@ -10,7 +12,14 @@ class MultivariateNormalProposal(Proposal):
     The posterior distribution is approximated by a multivariate normal.
     """
 
-    def __init__(self, loc, cov, eps=1e-4, gamma=0.99):
+    def __init__(
+            self,
+            loc,
+            cov, /,
+            eps=Defaults.proposal_eps,
+            gamma=Defaults.proposal_gamma
+        ):
+        
         """
         Initialize the proposal distribution.
 

@@ -1,7 +1,7 @@
 import torch
 from unittest import TestCase
 
-from pfs.ga.bayesian.mcmc.distributions import Delta
+from pfs.ga.bayesian.distributions import Delta
 
 class DeltaTest(TestCase):
     def test_init(self):
@@ -23,6 +23,14 @@ class DeltaTest(TestCase):
 
         s = d.sample(sample_shape=(100, 5))
         self.assertEqual(s.shape, (100, 5, 3))
+
+    def test_expand(self):
+        loc = torch.tensor([0.0, 0.0, 0.0])
+        d = Delta(loc)
+
+        d_expanded = d.expand((10,))
+        self.assertEqual(d_expanded.batch_shape, (10,))
+        self.assertEqual(d_expanded.event_shape, (3,))
 
     def test_log_prob(self):
         loc = torch.tensor([0.0, 0.0, 0.0])

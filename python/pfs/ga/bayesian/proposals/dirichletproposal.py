@@ -1,14 +1,22 @@
 import torch
 
+from ..constants import Constants
+from ..defaults import Defaults
 from ..distributions import Dirichlet
-from .proposal import Proposal
+from ..proposal import Proposal
 
 class DirichletProposal(Proposal):
     """
     Proposal distribution to generate steps for the Dirichlet distribution.
     """
 
-    def __init__(self, alpha, m=5.0, gamma=0.999):
+    def __init__(
+            self,
+            alpha, /,
+            m = Constants.MISSING,
+            gamma = Constants.MISSING
+        ):
+
         """
         Initialize the proposal distribution.
         
@@ -22,8 +30,11 @@ class DirichletProposal(Proposal):
             Controls the memory of the adaptation.
         """
 
-        self.__alpha = alpha                    # Concentration parameter
-        self.__m = m                            # Maximum concentration
+        # Concentration parameter
+        self.__alpha = alpha                    
+        
+        # Maximum concentration
+        self.__m = m if m is not Constants.MISSING else Defaults.proposal_dirichlet_max_concentration
 
         self.__reset_streaming_moments(alpha)
 

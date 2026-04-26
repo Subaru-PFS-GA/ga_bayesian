@@ -1,3 +1,6 @@
+from .constants import Constants
+from .defaults import Defaults
+
 __all__ = ['Proposal']
 
 class Proposal():
@@ -6,21 +9,27 @@ class Proposal():
 
     Variables:
     ----------
+    model: Model
+        The model for which the proposal distribution is used.
     gamma: float
         Controls the memory of the adaptation.
-    k: int
-        The number of samples seen so far.
     dist: torch.distributions.Distribution
         The distribution object.
     """
 
-    def __init__(self, gamma=0.99):
+    def __init__(
+            self,
+            /,
+            gamma=Constants.MISSING
+        ):
+        
+        self._gamma = gamma if gamma is not Constants.MISSING else Defaults.proposal_gamma
+        
         self.__adaptive = True
-        self._gamma = gamma
-
         self.__dist = self.__dist = self._create_dist_impl()
 
     #region Properties
+
 
     def __get_adaptive(self):
         return self.__adaptive

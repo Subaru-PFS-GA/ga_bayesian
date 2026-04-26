@@ -1,23 +1,29 @@
 import torch
 
+from ..constants import Constants
+from ..defaults import Defaults
 from ..distributions import Categorical
-from .proposal import Proposal
+from ..proposal import Proposal
 
 class CategoricalProposal(Proposal):
     """
     Proposal distribution to generate steps for the Categorial distribution.
     """
 
-    def __init__(self, w, gamma=0.999):
+    def __init__(
+            self,
+            w, /,
+            gamma=Defaults.proposal_gamma):
+        
         """
         Initialize the proposal distribution.
         
         Parameters:
         -----------
-        gamma: float
-            Controls the memory of the adaptation.
         w: array_like
             The initial weights.
+        gamma: float
+            Controls the memory of the adaptation.
         """
 
         self.__w = w / w.sum(-1)[..., None]
