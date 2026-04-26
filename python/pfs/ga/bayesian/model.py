@@ -9,6 +9,7 @@ from .defaults import Defaults
 from .variable import Variable
 from .observed import Observed
 from .deterministic import Deterministic
+from .selection import Selection
 from .proposal import Proposal
 from .step import Step
 from .plate import Plate
@@ -336,7 +337,15 @@ class Model():
                     indices_extractor(state)
                 )
 
-            s = Deterministic(name, eval_func, parents=parents, plates=list(self._plate_stack))
+            s = Selection(
+                name,
+                eval_func,
+                parents=parents,
+                plates=list(self._plate_stack),
+                input_values=values,
+                selector=indices,
+            )
+            
             for parent in parents:
                 parent.children.append(s)
 
@@ -629,29 +638,29 @@ class Model():
         ordered_blanket = [ site for site in self.sites.values() if site in blanket ]
         return ordered_blanket
 
-    def log_prob_markov_blanket(self, state, sites, *, include_sites=True):
-        """
-        Sum log-probability terms over the Markov blanket of the given site(s).
+    # def log_prob_markov_blanket(self, state, sites, *, include_sites=True):
+    #     """
+    #     Sum log-probability terms over the Markov blanket of the given site(s).
 
-        Deterministic sites are skipped because they do not define a probability term.
-        """
+    #     Deterministic sites are skipped because they do not define a probability term.
+    #     """
 
-        blanket_sites = self.markov_blanket(sites, include_sites=include_sites)
+    #     blanket_sites = self.markov_blanket(sites, include_sites=include_sites)
 
-        total_log_prob = None
-        for blanket_site in blanket_sites:
-            if not hasattr(blanket_site, "log_prob"):
-                continue
+    #     total_log_prob = None
+    #     for blanket_site in blanket_sites:
+    #         if not hasattr(blanket_site, "log_prob"):
+    #             continue
 
-            site_log_prob = blanket_site.log_prob(state)
-            if total_log_prob is None:
-                total_log_prob = site_log_prob
-            else:
-                total_log_prob = total_log_prob + site_log_prob
+    #         site_log_prob = blanket_site.log_prob(state)
+    #         if total_log_prob is None:
+    #             total_log_prob = site_log_prob
+    #         else:
+    #             total_log_prob = total_log_prob + site_log_prob
 
-        if total_log_prob is None:
-            query_site = self.__as_sites(sites)[0]
-            value = query_site.value(state)
-            return torch.zeros_like(value, dtype=value.dtype)
+    #     if total_log_prob is None:
+    #         query_site = self.__as_sites(sites)[0]
+    #         value = query_site.value(state)
+    #         return torch.zeros_like(value, dtype=value.dtype)
 
-        return total_log_prob
+    #     return total_log_prob
