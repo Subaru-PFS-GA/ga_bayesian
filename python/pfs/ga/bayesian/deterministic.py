@@ -9,10 +9,19 @@ class Deterministic(Site):
     their values into a derived deterministic value.
     """
 
-    def __init__(self, name, eval_func):
-        super().__init__(name)
+    def __init__(self, name, eval_func, parents=None, children=None, plates=None):
+        super().__init__(name, parents=parents, children=children, plates=plates)
 
         self.__eval_func = eval_func
+
+    #region Properties
+
+    def __get_eval_func(self):
+        return self.__eval_func
+
+    eval_func = property(__get_eval_func)
+
+    #endregion
 
     def eval(self, state):
         """
@@ -47,4 +56,9 @@ class Deterministic(Site):
         return value
 
     def value(self, state):
-        return state[self.name]
+        # Deterministic sites are derived; recompute from current parent values.
+        return self.eval(state)
+    
+    def shape(self, state):
+        # Deterministic sites are derived; recompute from current parent values.
+        return self.eval(state).shape
