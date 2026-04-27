@@ -397,7 +397,7 @@ class Model():
                 return self.state[name]
 
             value = dist.sample()
-            self.state[name] = value
+            site.set(self.state, value)
             return value
 
         def select(self, name, values, indices):
@@ -451,9 +451,61 @@ class Model():
             # log-probability of the full conditional distribution for the step sites
 
             if log_prob_func is Constants.MISSING:
+                # Get the Markov blanket for the step sites
+                blanket = self.model.markov_blanket(sites, include_sites=True)
+
+                # Plates that the step sites already live in — used to detect
+                # plate-boundary crossings when summing child log-probs.
+                step_plate_set = set(p for step_site in sites for p in step_site.plates)
+
+                # Collect the stochastic factor sites implied by blanket edges.
+                factor_sites = set(sites)
+                for edge in blanket.edges:
+                    factor_sites.add(edge.target)
+
+                # For each factor site, precompute the tensor dimensions (as
+                # negative indices) that correspond to plates not present in the
+                # step sites.  Those dimensions must be summed out so that the
+                # returned log-prob has the same shape as the step-site values.
+                #
+                # plate.size is a tuple, so each plate can contribute multiple
+                # consecutive dims.  We walk the factor site's plate list in
+                # order (outer to inner) and record negative indices for every
+                # dim belonging to an extra plate.
+                def _extra_plate_dims(factor_site):
+                    total_plate_dims = sum(len(p.size) for p in factor_site.plates)
+                    dims = []
+                    offset = 0
+                    for p in factor_site.plates:
+                        n = len(p.size)
+                        if p not in step_plate_set:
+                            for k in range(n):
+                                dims.append(-(total_plate_dims - offset - k))
+                        offset += n
+                    return dims
+
+                ordered_factor_sites = [
+                    (fs, _extra_plate_dims(fs))
+                    for fs in self.model.sites.values()
+                    if fs in factor_sites and isinstance(fs, Variable)
+                ]
+
                 def log_prob_func(step, state):
-                    # This is a placeholder for calculating the full conditional
-                    pass
+                    total_log_prob = None
+
+                    for factor_site, plate_dims in ordered_factor_sites:
+                        site_log_prob = factor_site.log_prob(state)
+                        if plate_dims:
+                            site_log_prob = site_log_prob.sum(plate_dims)
+                        if total_log_prob is None:
+                            total_log_prob = site_log_prob
+                        else:
+                            total_log_prob = total_log_prob + site_log_prob
+
+                    if total_log_prob is not None:
+                        return total_log_prob
+                    else:
+                        raise RuntimeError(f"No factor sites found for step '{name}'. Cannot compute log_prob.")
 
             step = Step(
                 name,
