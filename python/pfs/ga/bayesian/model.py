@@ -2,8 +2,6 @@ from collections import OrderedDict
 
 import torch
 
-from pfs.ga.bayesian import site
-
 from .constants import Constants
 from .defaults import Defaults
 from .variable import Variable
@@ -13,6 +11,8 @@ from .selection import Selection
 from .proposal import Proposal
 from .step import Step
 from .plate import Plate
+from .blanket import Blanket
+from .edge import Edge
 
 class Model():
 
@@ -562,56 +562,110 @@ class Model():
         query_sites = self.__as_sites(sites)
         query_set = set(query_sites)
         blanket = set()
+        selectors = set()
+        edges = {}
+
+        def _add_edge(source, target, role, edge_selections):
+            key = (id(source), id(target), role)
+            if key in edges:
+                merged = set(edges[key].selections)
+                merged.update(edge_selections)
+                ordered_merged = [site for site in self.sites.values() if site in merged]
+                edges[key] = Edge(source, target, role, selections=ordered_merged)
+            else:
+                ordered = [site for site in self.sites.values() if site in edge_selections]
+                edges[key] = Edge(source, target, role, selections=ordered)
 
         def stochastic_ancestors(site):
             """
             Follow deterministic chains upward from site's parents to collect stochastic ancestors.
             Stops at stochastic nodes without traversing through them.
             """
-            result = set()
-            visited = set()
-            frontier = list(site.parents)
+            result = {}
+            used_selections = set()
+            visited = {}
+            frontier = [ (parent, set()) for parent in site.parents ]
             while frontier:
-                current = frontier.pop()
-                if id(current) in visited:
+                current, path_selections = frontier.pop()
+                current_id = id(current)
+                previous = visited.get(current_id)
+                if previous is not None and path_selections.issubset(previous):
                     continue
-                visited.add(id(current))
-                if isinstance(current, Deterministic):
-                    frontier.extend(current.parents)
+                if previous is None:
+                    visited[current_id] = set(path_selections)
                 else:
-                    result.add(current)
-            return result
+                    previous.update(path_selections)
+                if isinstance(current, Deterministic):
+                    next_path = set(path_selections)
+                    if isinstance(current, Selection):
+                        used_selections.add(current)
+                        next_path.add(current)
+                    for parent in current.parents:
+                        frontier.append((parent, next_path))
+                else:
+                    if current not in result:
+                        result[current] = set(path_selections)
+                    else:
+                        result[current].update(path_selections)
+            return result, used_selections
 
         def stochastic_children(site):
             """
             Follow deterministic chains downward from site's children to collect stochastic children.
             Stops at stochastic nodes without traversing through them.
             """
-            result = set()
-            visited = set()
-            frontier = list(site.children)
+            result = {}
+            used_selections = set()
+            visited = {}
+            frontier = [ (child, set()) for child in site.children ]
             while frontier:
-                current = frontier.pop()
-                if id(current) in visited:
+                current, path_selections = frontier.pop()
+                current_id = id(current)
+                previous = visited.get(current_id)
+                if previous is not None and path_selections.issubset(previous):
                     continue
-                visited.add(id(current))
-                if isinstance(current, Deterministic):
-                    frontier.extend(current.children)
+                if previous is None:
+                    visited[current_id] = set(path_selections)
                 else:
-                    result.add(current)
-            return result
+                    previous.update(path_selections)
+                if isinstance(current, Deterministic):
+                    next_path = set(path_selections)
+                    if isinstance(current, Selection):
+                        used_selections.add(current)
+                        next_path.add(current)
+                    for child in current.children:
+                        frontier.append((child, next_path))
+                else:
+                    if current not in result:
+                        result[current] = set(path_selections)
+                    else:
+                        result[current].update(path_selections)
+            return result, used_selections
 
         for query_site in query_sites:
             # Parents: follow deterministic chains upward from direct parents
-            blanket.update(stochastic_ancestors(query_site))
+            parents, parent_selectors = stochastic_ancestors(query_site)
+            blanket.update(parents.keys())
+            selectors.update(parent_selectors)
+            for parent_site, edge_selections in parents.items():
+                _add_edge(parent_site, query_site, "parent", edge_selections)
 
             # Children: follow deterministic chains downward from direct children
-            children = stochastic_children(query_site)
-            blanket.update(children)
+            children, child_selectors = stochastic_children(query_site)
+            blanket.update(children.keys())
+            selectors.update(child_selectors)
+            for child_site, edge_selections in children.items():
+                _add_edge(query_site, child_site, "child", edge_selections)
 
             # Co-parents: for each stochastic child, follow deterministic chains upward from its parents
-            for child in children:
-                blanket.update(stochastic_ancestors(child))
+            for child in children.keys():
+                coparents, coparent_selectors = stochastic_ancestors(child)
+                blanket.update(coparents.keys())
+                selectors.update(coparent_selectors)
+                for coparent_site, edge_selections in coparents.items():
+                    if coparent_site is query_site:
+                        continue
+                    _add_edge(coparent_site, child, "coparent", edge_selections)
 
         if include_sites:
             blanket.update(query_set)
@@ -619,7 +673,19 @@ class Model():
             blanket.difference_update(query_set)
 
         ordered_blanket = [ site for site in self.sites.values() if site in blanket ]
-        return ordered_blanket
+        ordered_selectors = [ site for site in self.sites.values() if site in selectors ]
+        role_order = {"parent": 0, "child": 1, "coparent": 2}
+        site_order = {id(site): i for i, site in enumerate(self.sites.values())}
+        ordered_edges = sorted(
+            edges.values(),
+            key=lambda edge: (
+                site_order.get(id(edge.source), 10**9),
+                site_order.get(id(edge.target), 10**9),
+                role_order.get(edge.role, 10**9),
+            )
+        )
+
+        return Blanket(ordered_blanket, selections=ordered_selectors, edges=ordered_edges)
 
     # def log_prob_markov_blanket(self, state, sites, *, include_sites=True):
     #     """

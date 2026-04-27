@@ -98,14 +98,28 @@ class TestModelMixture(unittest.TestCase):
         blanket_w = model.markov_blanket(model.w)
         self.assertEqual(len(blanket_w), 1)
         self.assertIn(model.z, blanket_w)
+        self.assertFalse(blanket_w.has_selector)
+        self.assertEqual(len(blanket_w.selections), 0)
+        self.assertEqual(len(blanket_w.edges), 1)
+        self.assertEqual(blanket_w.edges[0].source, model.w)
+        self.assertEqual(blanket_w.edges[0].target, model.z)
+        self.assertEqual(blanket_w.edges[0].role, 'child')
 
         blanket_theta_1 = model.markov_blanket(model.theta_1)
         self.assertEqual(len(blanket_theta_1), 1)
         self.assertIn(model.x_1, blanket_theta_1)
+        self.assertFalse(blanket_theta_1.has_selector)
+        self.assertEqual(len(blanket_theta_1.selections), 0)
+        self.assertEqual(len(blanket_theta_1.edges), 1)
+        self.assertEqual(blanket_theta_1.edges[0].source, model.theta_1)
+        self.assertEqual(blanket_theta_1.edges[0].target, model.x_1)
+        self.assertEqual(blanket_theta_1.edges[0].role, 'child')
 
         blanket_theta_2 = model.markov_blanket(model.theta_2)
         self.assertEqual(len(blanket_theta_2), 1)
         self.assertIn(model.x_2, blanket_theta_2)
+        self.assertFalse(blanket_theta_2.has_selector)
+        self.assertEqual(len(blanket_theta_2.selections), 0)
 
         blanket_z = model.markov_blanket(model.z)
         self.assertEqual(len(blanket_z), 4)
@@ -113,6 +127,23 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.x_1, blanket_z)
         self.assertIn(model.x_2, blanket_z)
         self.assertIn(model.obs, blanket_z)
+        self.assertTrue(blanket_z.has_selector)
+        self.assertIn(model.x, blanket_z.selections)
+
+        edge_z_parent = [edge for edge in blanket_z.edges if edge.source is model.w and edge.target is model.z and edge.role == 'parent']
+        self.assertEqual(len(edge_z_parent), 1)
+        self.assertEqual(len(edge_z_parent[0].selections), 0)
+
+        edge_z_child = [edge for edge in blanket_z.edges if edge.source is model.z and edge.target is model.obs and edge.role == 'child']
+        self.assertEqual(len(edge_z_child), 1)
+        self.assertIn(model.x, edge_z_child[0].selections)
+
+        edge_z_coparent_1 = [edge for edge in blanket_z.edges if edge.source is model.x_1 and edge.target is model.obs and edge.role == 'coparent']
+        edge_z_coparent_2 = [edge for edge in blanket_z.edges if edge.source is model.x_2 and edge.target is model.obs and edge.role == 'coparent']
+        self.assertEqual(len(edge_z_coparent_1), 1)
+        self.assertEqual(len(edge_z_coparent_2), 1)
+        self.assertIn(model.x, edge_z_coparent_1[0].selections)
+        self.assertIn(model.x, edge_z_coparent_2[0].selections)
 
         blanket_x_1 = model.markov_blanket(model.x_1)
         self.assertEqual(len(blanket_x_1), 4)
@@ -120,6 +151,9 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.x_2, blanket_x_1)
         self.assertIn(model.z, blanket_x_1)
         self.assertIn(model.obs, blanket_x_1)
+        self.assertTrue(blanket_x_1.has_selector)
+        self.assertIn(model.x, blanket_x_1.selections)
+        self.assertEqual(len(blanket_x_1.edges), 4)
 
         blanket_x_2 = model.markov_blanket(model.x_2)
         self.assertEqual(len(blanket_x_2), 4)
@@ -127,6 +161,8 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.x_1, blanket_x_2)
         self.assertIn(model.z, blanket_x_2)
         self.assertIn(model.obs, blanket_x_2)
+        self.assertTrue(blanket_x_2.has_selector)
+        self.assertIn(model.x, blanket_x_2.selections)
 
         blanket_x = model.markov_blanket(model.x)
         self.assertEqual(len(blanket_x), 4)
@@ -134,12 +170,26 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.x_2, blanket_x)
         self.assertIn(model.z, blanket_x)
         self.assertIn(model.obs, blanket_x)
+        self.assertTrue(blanket_x.has_selector)
+        self.assertIn(model.x, blanket_x.selections)
 
         blanket_obs = model.markov_blanket(model.obs)
         self.assertEqual(len(blanket_obs), 3)
         self.assertIn(model.x_1, blanket_obs)
         self.assertIn(model.x_2, blanket_obs)
         self.assertIn(model.z, blanket_obs)
+        self.assertTrue(blanket_obs.has_selector)
+        self.assertIn(model.x, blanket_obs.selections)
+
+        edge_obs_parent_z = [edge for edge in blanket_obs.edges if edge.source is model.z and edge.target is model.obs and edge.role == 'parent']
+        edge_obs_parent_x1 = [edge for edge in blanket_obs.edges if edge.source is model.x_1 and edge.target is model.obs and edge.role == 'parent']
+        edge_obs_parent_x2 = [edge for edge in blanket_obs.edges if edge.source is model.x_2 and edge.target is model.obs and edge.role == 'parent']
+        self.assertEqual(len(edge_obs_parent_z), 1)
+        self.assertEqual(len(edge_obs_parent_x1), 1)
+        self.assertEqual(len(edge_obs_parent_x2), 1)
+        self.assertIn(model.x, edge_obs_parent_z[0].selections)
+        self.assertIn(model.x, edge_obs_parent_x1[0].selections)
+        self.assertIn(model.x, edge_obs_parent_x2[0].selections)
 
     # def test_log_prob(self):
     #     def log_prob_helper(N=(100,), C=()):
