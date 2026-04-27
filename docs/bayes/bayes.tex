@@ -1,0 +1,105 @@
+\documentclass[10pt,aspectratio=169]{beamer}
+\usefonttheme{professionalfonts} % using non standard fonts for beamer
+\usefonttheme{serif} % default family is serif
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{color}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathtools}
+% \usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{tikz-qtree}
+\usepackage{listings}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{fontspec}
+\usepackage{unicode-math}
+\usepackage{upgreek}
+
+\usetikzlibrary{arrows,shapes}
+\usetikzlibrary{tikzmark}
+\usetikzlibrary{fit}
+
+\beamertemplatenavigationsymbolsempty
+% \usefonttheme{professionalfonts}
+% \usefonttheme{professionalfonts}
+% \usefonttheme{serif}
+
+\setmainfont{Cambria}[
+  BoldFont = Cambria Bold,
+  ItalicFont = Cambria Italic,
+  BoldItalicFont = Cambria Bold Italic
+]
+\setmathfont{Cambria Math}
+
+% \renewcommand{\familydefault}{\rmdefault}
+
+% set the style of beamerboxrounded to have a 1pt thick border
+
+
+\lstset{
+    % numbers=left, numberstyle=\tiny, stepnumber=1,firstnumber=1, numbersep=5pt,
+    language=SQL,
+    stringstyle=\ttfamily,
+    % basicstyle=\footnotesize, 
+    showstringspaces=false,
+    frame=single,
+}
+
+\newcommand{\bulletspace}{\vspace{0.5em}{}}
+\newcommand{\fix}[1]{\textcolor{red}{#1}}
+
+\newcommand{\blue}[1]{\textcolor{blue}{#1}}
+\newcommand{\red}[1]{\textcolor{red}{#1}}
+
+
+\title{Hierarchical Bayesian Models}
+% \subtitle{}
+\author{László Dobos}
+\date{April 27, 2026}
+
+\begin{document}
+
+% For every picture that defines or uses external nodes, you'll have to
+% apply the 'remember picture' style. To avoid some typing, we'll apply
+% the style to all pictures.
+\tikzstyle{every picture}+=[remember picture]
+
+\begin{frame}
+\titlepage
+\end{frame}
+
+\begin{frame}{Outline}
+
+    Constructing the graphical model:
+    \begin{itemize}
+        \item Generative process
+        \item Plate notation
+        \item Random sites and deterministic sites
+    \end{itemize}
+
+    \bulletspace
+    Conditional probability distributions:
+    \begin{itemize}
+        \item Graph edges and conditional probability distributions
+        \item Factorization of the joint distribution
+        \item Conditional independence
+        \item Full conditional distributions
+        \item Markov blanket
+    \end{itemize}
+
+    \bulletspace
+    Inference:
+    \begin{itemize}
+        \item Gibbs blocking
+        \item Collapsed Gibbs sampling
+    \end{itemize}
+
+\end{frame}
+
+\end{document}
