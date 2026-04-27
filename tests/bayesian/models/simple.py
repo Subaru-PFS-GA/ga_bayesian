@@ -1,36 +1,26 @@
 import torch
 
 from pfs.ga.bayesian import Model, Variable, Proposal
+from pfs.ga.bayesian.constants import Constants
 from pfs.ga.bayesian.distributions import Normal
 from pfs.ga.bayesian.proposals import NormalProposal
 
 class Simple(Model):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, N=Constants.MISSING, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.theta = self.variable('theta', Normal(0.0, 1.0))
-        self.x = self.variable('x', lambda state: Normal(self.theta.value(state), 1.0))
-        self.obs = self.observed('obs', lambda state: Normal(self.x.value(state), 0.5))
+        self.N = N = N if N is not Constants.MISSING else (100,)
 
-    def sample(self, state):
-        theta = self.theta.sample(state)
-        x = self.x.sample(state)
-        obs = self.obs.sample(state)
-    
-    def propose_x(self, init_state, final_state):
-        x = self.proposal('x').sample()
-        self.x.set(final_state, x)
+    def model(self, context):
+        N = self.N
 
-    def update_x(self, final_state):
-        x = self.x.value(final_state)
-        self.proposal('x').update(x)
+        theta = context.sample('theta', Normal(0.0, 1.0))
 
-    def log_prob_x_given_all(self, state):
-        lp = self.x.log_prob(state)
-        lp += self.obs.log_prob(state)
-        return lp
+        with context.plate('n', N):
+            x = context.sample('x', Normal(theta, 1.0))
+            obs = context.sample('obs', Normal(x, 0.5))
 
-    def build(self, init_state):
-        self.proposal('x', NormalProposal(self.x.value(init_state), 1.0))
-        self.step('x', self.propose_x, self.update_x, self.log_prob_x_given_all)
+    def step(self, context, state):
+        context.step('theta', [ self.theta ], proposal=NormalProposal(self.theta.value(state), 0.5))
+        context.step('x', [ self.x ], proposal=NormalProposal(self.x.value(state), 1.0))

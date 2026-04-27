@@ -35,15 +35,15 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.x, model.z.children)
         self.assertIn(model.obs, model.x.children)
 
-    def test_block(self):
-        def block_helper(N=(100,), C=()):
+    def test_step(self):
+        def step_helper(N=(100,), C=()):
             model = Mixture(N=N)
             context = model._BuildContext(model)
             model.model(context)
 
             context = model._SampleContext(model, state={}, batch_shape=C)
             model.model(context)
-            model.block(context, context.state)
+            model.step(context, context.state)
 
             # Verify the Gibbs sampling steps are defined for the correct variables
             self.assertIn('w', model.steps)
@@ -70,8 +70,8 @@ class TestModelMixture(unittest.TestCase):
             self.assertEqual(model.steps['x_2'].proposal.dist.event_shape, ())
             self.assertEqual(model.steps['x_2'].proposal.dist.batch_shape, N + C)
 
-        block_helper()
-        block_helper(C=(10,))
+        step_helper()
+        step_helper(C=(10,))
 
     def test_sample(self):
         def sample_helper(N=(100,), C=()):

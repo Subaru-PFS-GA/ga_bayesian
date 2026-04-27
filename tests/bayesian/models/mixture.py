@@ -28,9 +28,7 @@ class Mixture(Model):
             x = context.select('x', [x_1, x_2], z)
             obs = context.sample('obs', Normal(x, 0.25), observed=True)
 
-    def block(self, context, state):
-        K = 2
-
+    def step(self, context, state):
         # Define the Gibbs sampling steps for each group of sampled variables
         context.step('w', [ self.w ], proposal=DirichletProposal(3.0 * torch.ones_like(self.w.value(state))))
         

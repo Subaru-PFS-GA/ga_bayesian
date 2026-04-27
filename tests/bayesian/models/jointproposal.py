@@ -25,7 +25,7 @@ class JointProposal(Model):
             x = context.sample('x', Normal(mu, sigma))
             obs = context.sample('obs', Normal(x, 0.25), observed=True)
 
-    def block(self, context, state):
+    def step(self, context, state):
         # Joint step for population parameters [mu, sigma]
         theta = torch.stack([ self.mu.value(state), self.sigma.value(state) ], dim=-1)
         context.step(
