@@ -25,7 +25,7 @@ class TestModelMixture(unittest.TestCase):
         self.assertEqual([plate.name for plate in model.x.plates], ['n'])
         self.assertEqual([parent.name for parent in model.x.parents], ['x_1', 'x_2', 'z'])
 
-        # self.assertEqual([plate.name for plate in model.obs.plates], ['n'])
+        self.assertEqual([plate.name for plate in model.obs.plates], ['n'])
         self.assertEqual([parent.name for parent in model.obs.parents], ['x'])
 
         self.assertIn(model.z, model.w.children)
