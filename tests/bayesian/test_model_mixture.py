@@ -9,41 +9,22 @@ from .models import Mixture
 class TestModelMixture(unittest.TestCase):
 
     def test_build(self):
-        model = Mixture(N=(100,))
+        model = Mixture()
         context = model._BuildContext(model)
         model.model(context)
 
-        self.assertEqual([plate.name for plate in model.w.plates], [])
-        self.assertEqual([parent.name for parent in model.w.parents], [])
-
-        self.assertEqual([plate.name for plate in model.z.plates], ['n'])
-        self.assertEqual([parent.name for parent in model.z.parents], ['w'])
-
-        self.assertEqual([plate.name for plate in model.x_1.plates], ['n'])
-        self.assertEqual([parent.name for parent in model.x_1.parents], ['theta_1'])
-
-        self.assertEqual([plate.name for plate in model.x.plates], ['n'])
-        self.assertEqual([parent.name for parent in model.x.parents], ['x_1', 'x_2', 'z'])
-
-        self.assertEqual([plate.name for plate in model.obs.plates], ['n'])
-        self.assertEqual([parent.name for parent in model.obs.parents], ['x'])
-
-        self.assertIn(model.z, model.w.children)
-        self.assertIn(model.x_1, model.theta_1.children)
-        self.assertIn(model.x, model.x_1.children)
-        self.assertIn(model.x, model.x_2.children)
-        self.assertIn(model.x, model.z.children)
-        self.assertIn(model.obs, model.x.children)
+        self.assertIn(model.w, model.z.parents)
+        self.assertIn(model.theta_1, model.x_1.parents)
+        self.assertIn(model.theta_2, model.x_2.parents)
+        self.assertIn(model.z, model.x.parents)
+        self.assertIn(model.x_1, model.x.parents)
+        self.assertIn(model.x_2, model.x.parents)
+        self.assertIn(model.x, model.obs.parents)
 
     def test_step(self):
         def step_helper(N=(100,), C=()):
             model = Mixture(N=N)
-            context = model._BuildContext(model)
-            model.model(context)
-
-            context = model._SampleContext(model, state={}, batch_shape=C)
-            model.model(context)
-            model.step(context, context.state)
+            model.build(batch_shape=C)
 
             # Verify the Gibbs sampling steps are defined for the correct variables
             self.assertIn('w', model.steps)
@@ -76,10 +57,11 @@ class TestModelMixture(unittest.TestCase):
     def test_sample(self):
         def sample_helper(N=(100,), C=()):
             model = Mixture(N=N)
-            state = {}
-            model.sample(state, batch_shape=C)
+            model.build(batch_shape=C)
+            state = model.sample()
 
             self.assertEqual(model.w.shape(state), C + (2,))
+            self.assertEqual(model.z.shape(state), N + C)
             self.assertEqual(model.theta_1.shape(state), C)
             self.assertEqual(model.theta_2.shape(state), C)
             self.assertEqual(model.x_1.shape(state), N + C)
@@ -92,8 +74,7 @@ class TestModelMixture(unittest.TestCase):
 
     def test_markov_blanket(self):
         model = Mixture()
-        context = model._BuildContext(model)
-        model.model(context)
+        model.build()
 
         blanket_w = model.markov_blanket(model.w)
         self.assertEqual(len(blanket_w), 1)
@@ -191,48 +172,33 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.x, edge_obs_parent_x1[0].selections)
         self.assertIn(model.x, edge_obs_parent_x2[0].selections)
 
-    # def test_log_prob(self):
-    #     def log_prob_helper(N=(100,), C=()):
-    #         model = Mixture(N=N, C=C)
-    #         state = {}
-    #         model.sample(state)
+    def test_log_prob(self):
+        def log_prob_helper(N=(100,), C=()):
+            model = Mixture(N=N)
+            model.build(batch_shape=C)
+            state = model.sample()
 
-    #         lp = model.log_prob_theta_1(state)
-    #         self.assertEqual(lp.shape, C)
+            lp = model.w.log_prob(state)
+            self.assertEqual(lp.shape, C)
 
-    #         lp = model.log_prob_theta_2(state)
-    #         self.assertEqual(lp.shape, C)
+            lp = model.theta_1.log_prob(state)
+            self.assertEqual(lp.shape, C)
 
-    #         lp = model.log_prob_z(state)
-    #         self.assertEqual(lp.shape, N + C)
+            lp = model.theta_2.log_prob(state)
+            self.assertEqual(lp.shape, C)
 
-    #         lp = model.log_prob_x_1(state)
-    #         self.assertEqual(lp.shape, N + C)
+            lp = model.z.log_prob(state)
+            self.assertEqual(lp.shape, N + C)
 
-    #         lp = model.log_prob_x_2(state)
-    #         self.assertEqual(lp.shape, N + C)
+            lp = model.x_1.log_prob(state)
+            self.assertEqual(lp.shape, N + C)
 
-    #     log_prob_helper()
-    #     log_prob_helper(C=(10,))
+            lp = model.x_2.log_prob(state)
+            self.assertEqual(lp.shape, N + C)
+
+            lp = model.obs.log_prob(state)
+            self.assertEqual(lp.shape, N + C)
+
+        log_prob_helper()
+        log_prob_helper(C=(10,))
         
-
-    # def test_step(self):
-    #     def step_helper(N=(100,), C=()):
-    #         model = Mixture(N=N, C=C)
-    #         init_state = {}
-    #         model.sample(init_state)
-    #         model.build(init_state)
-
-    #         kernel = GibbsKernel(model)
-    #         final_state = kernel.step(init_state)
-            
-    #         self.assertEqual(final_state['theta_1'].shape, C)
-    #         self.assertEqual(final_state['theta_2'].shape, C)
-    #         self.assertEqual(final_state['z'].shape, N + C)
-    #         self.assertEqual(final_state['x_1'].shape, N + C)
-    #         self.assertEqual(final_state['x_2'].shape, N + C)
-    #         self.assertEqual(final_state['x'].shape, N + C)
-    #         self.assertEqual(final_state['obs'].shape, N + C)
-
-    #     step_helper()
-    #     step_helper(C=(10,))

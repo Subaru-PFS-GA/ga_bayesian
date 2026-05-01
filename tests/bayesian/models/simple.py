@@ -10,7 +10,7 @@ class Simple(Model):
     def __init__(self, N=Constants.MISSING, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.N = N = N if N is not Constants.MISSING else (100,)
+        self.N = N if N is not Constants.MISSING else (100,)
 
     def model(self, context):
         N = self.N
@@ -22,5 +22,14 @@ class Simple(Model):
             obs = context.sample('obs', Normal(x, 0.5), observed=True)
 
     def step(self, context):
-        context.step('theta', [ self.theta ], proposal=NormalProposal(self.theta.value(context.state), 0.5))
-        context.step('x', [ self.x ], proposal=NormalProposal(self.x.value(context.state), 1.0))
+        context.step(
+            'theta',
+            [ self.theta ],
+            proposal = NormalProposal(self.theta.value(context.state), 0.5)
+        )
+
+        context.step(
+            'x',
+            [ self.x ],
+            proposal = NormalProposal(self.x.value(context.state), 1.0)
+        )

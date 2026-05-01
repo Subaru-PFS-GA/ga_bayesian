@@ -25,18 +25,25 @@ class JointProposal(Model):
             x = context.sample('x', Normal(mu, sigma))
             obs = context.sample('obs', Normal(x, 0.25), observed=True)
 
-    def step(self, context, state):
+    def step(self, context):
         # Joint step for population parameters [mu, sigma]
-        theta = torch.stack([ self.mu.value(state), self.sigma.value(state) ], dim=-1)
         context.step(
             'theta',
             [ self.mu, self.sigma ],
-            proposal = MultivariateNormalProposal(theta, torch.eye(2) * 0.5)
+            proposal = MultivariateNormalProposal(
+                torch.stack(
+                    [
+                        self.mu.value(context.state),
+                        self.sigma.value(context.state)
+                    ],
+                    dim=-1
+                ),
+                torch.eye(2) * 0.5)
         )
 
         # Member-level latent variable step
         context.step(
             'x',
             [ self.x ],
-            proposal = NormalProposal(self.x.value(state), self.sigma.value(state))
+            proposal = NormalProposal(self.x.value(context.state), self.sigma.value(context.state))
         )

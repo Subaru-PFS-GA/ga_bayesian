@@ -32,12 +32,7 @@ class TestModelJointProposal(unittest.TestCase):
     def test_step(self):
         def step_helper(N=(100,), C=()):
             model = JointProposal(N=N)
-            context = model._BuildContext(model)
-            model.model(context)
-
-            context = model._SampleContext(model, state={}, batch_shape=C)
-            model.model(context)
-            model.step(context, context.state)
+            model.build(batch_shape=C)
 
             self.assertIn('theta', model.steps)
             self.assertEqual(model.steps['theta'].sites, [model.mu, model.sigma])
@@ -55,8 +50,8 @@ class TestModelJointProposal(unittest.TestCase):
     def test_sample(self):
         def sample_helper(N=(100,), C=()):
             model = JointProposal(N=N)
-            state = {}
-            model.sample(state, batch_shape=C)
+            model.build(batch_shape=C)
+            state = model.sample()
 
             self.assertEqual(model.mu.shape(state), C)
             self.assertEqual(model.sigma.shape(state), C)
@@ -68,8 +63,7 @@ class TestModelJointProposal(unittest.TestCase):
 
     def test_markov_blanket(self):
         model = JointProposal()
-        context = model._BuildContext(model)
-        model.model(context)
+        model.build()
 
         blanket_mu = model.markov_blanket(model.mu)
         self.assertEqual(len(blanket_mu), 2)
