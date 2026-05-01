@@ -364,7 +364,7 @@ class Model():
                     indices_extractor(state)
                 )
 
-            s = Selection(
+            site = Selection(
                 name,
                 eval_func,
                 parents=parents,
@@ -374,19 +374,19 @@ class Model():
             )
 
             for parent in parents:
-                parent.children.append(s)
+                parent.children.append(site)
 
-            self.model.sites[name] = s
-            setattr(self.model, name, s)
+            self.model.sites[name] = site
+            setattr(self.model, name, site)
 
             selected = torch.select(values, indices)
             if isinstance(selected, Model._TraceTensor):
                 selected = selected.raw()
 
-            # TODO: evaluate and set value
-            raise NotImplementedError("Selection sites are not fully implemented yet.")
+            # Evaluate and set value
+            site.set(self.state)
 
-            return Model._TraceTensor(selected, site=s)
+            return Model._TraceTensor(selected, site=site)
         
         def step(
             self,
@@ -536,9 +536,8 @@ class Model():
             """
 
             site = self.model.sites.get(name)
-            value = torch.select(values, indices)
-            site.set(self.state, value)
-            return value
+            site.set(self.state)
+            return site.value(self.state)
 
     def __init__(self, dtype=Defaults.dtype):
         self.__dtype = dtype
