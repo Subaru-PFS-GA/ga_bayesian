@@ -40,8 +40,7 @@ class MultivariateNormalProposal(Proposal):
 
         self.__dim = self.__loc.shape[-1]
 
-        # Scale
-        self.__scale = 2.38 / np.sqrt(self.__dim)
+        self.__mcmc_scale = 2.38 / np.sqrt(self.__dim)
 
         # Distribution origin is always zero
         self.__loc_zero = torch.zeros_like(self.__loc)
@@ -154,7 +153,7 @@ class MultivariateNormalProposal(Proposal):
             if self.__eps is not None:
                 cov = cov + self.__eps**2
 
-            return MultivariateNormal(self.__loc_zero, self.__scale * self.__scale * cov)
+            return MultivariateNormal(self.__loc_zero, self.__mcmc_scale * self.__mcmc_scale * cov)
         else:
             chol = self.__chol
 
@@ -164,4 +163,4 @@ class MultivariateNormalProposal(Proposal):
             #     chol = self.__chol
 
             # TODO: multiply by 2.38 * sqrt(dim) to get the right covariance matrix
-            return MultivariateNormal(self.__loc_zero, scale_tril=(self.__scale * chol))
+            return MultivariateNormal(self.__loc_zero, scale_tril=(self.__mcmc_scale * chol))

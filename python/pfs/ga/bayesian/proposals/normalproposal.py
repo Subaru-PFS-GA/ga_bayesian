@@ -20,6 +20,12 @@ class NormalProposal(Proposal):
         self.__loc = loc
         self.__scale = scale
         self.__var = scale * scale
+
+        self.__mcmc_scale = 2.38
+
+        # Distribution origin is always zero
+        self.__loc_zero = torch.zeros_like(self.__loc)
+
         self.__eps = eps
 
         super().__init__(gamma=gamma)
@@ -59,4 +65,4 @@ class NormalProposal(Proposal):
         self.__scale = torch.sqrt(self.__var)
 
     def _create_dist_impl(self):
-        return Normal(self.__loc, self.__scale)
+        return Normal(self.__loc_zero, self.__mcmc_scale * self.__scale)

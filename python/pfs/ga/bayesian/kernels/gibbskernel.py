@@ -10,10 +10,8 @@ class GibbsKernel(Kernel):
         final_state = {}
     
         for name, step in self.model.steps.items():
-            step_state = {}
-
             # Make a step proposal and compute the log probabilities for acceptance
-            step.propose(step_state)
+            step_state = step.propose(init_state)
             lp_init = step.log_prob(init_state)
             lp_final = step.log_prob({ **init_state, **step_state })
 
