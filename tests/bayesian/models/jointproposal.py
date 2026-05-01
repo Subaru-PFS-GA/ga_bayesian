@@ -17,13 +17,13 @@ class JointProposal(Model):
         N = self.N
 
         # Population-level parameters (outside plate)
-        mu = context.sample('mu', Normal(0.0, 5.0))
+        mu = context.sample('mu', Normal(0.0, 5.0, validate_args=False))
         sigma = context.sample('sigma', Uniform(0.1, 3.0, validate_args=False))
 
         # Member-level latent variable and observation (inside plate)
         with context.plate('n', N):
-            x = context.sample('x', Normal(mu, sigma))
-            obs = context.sample('obs', Normal(x, 0.25), observed=True)
+            x = context.sample('x', Normal(mu, sigma, validate_args=False))
+            obs = context.sample('obs', Normal(x, 0.25, validate_args=False), observed=True)
 
     def step(self, context):
         # Joint step for population parameters [mu, sigma]
@@ -31,19 +31,17 @@ class JointProposal(Model):
             'theta',
             [ self.mu, self.sigma ],
             proposal = MultivariateNormalProposal(
-                torch.stack(
-                    [
-                        self.mu.value(context.state),
-                        self.sigma.value(context.state)
-                    ],
-                    dim=-1
-                ),
-                torch.eye(2) * 0.5)
+                torch.zeros(self.mu.shape(context.state) + (2,)),
+                (torch.eye(2) * 0.5).expand(self.mu.shape(context.state) + (2, 2))
+            )
         )
 
         # Member-level latent variable step
         context.step(
             'x',
             [ self.x ],
-            proposal = NormalProposal(self.x.value(context.state), self.sigma.value(context.state))
+            proposal = NormalProposal(
+                torch.zeros(self.x.shape(context.state)),
+                torch.ones(self.x.shape(context.state)) * 0.5
+            )
         )
