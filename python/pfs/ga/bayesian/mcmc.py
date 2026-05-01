@@ -41,9 +41,10 @@ class MCMC():
     def __set_observed(self, state, observed, batch_shape=()):
         # Set the observed variables in the model
         for key, value in observed.items():
+            value = value[(...,) + len(batch_shape) * (None,)].broadcast_to(value.shape + batch_shape)
             self.__kernel.model.sites[key].set(
                 state,
-                value.expand(batch_shape + value.shape).shape
+                value
             )
 
     def __wrap_in_progress_bar(self, iterable, label=None):
@@ -62,8 +63,6 @@ class MCMC():
             init_state = self.__generate_init_state()
 
         if observed is not Constants.MISSING:
-            # TODO: figure out how to expand the observed variables to match
-            #       the number of chains
             self.__set_observed(init_state, observed, batch_shape=(self.__num_chains,))
 
         for i in self.__wrap_in_progress_bar(range(self.__num_warmup), label="Warmup"):

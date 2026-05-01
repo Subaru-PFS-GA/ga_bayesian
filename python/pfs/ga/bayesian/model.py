@@ -454,13 +454,21 @@ class Model():
                     total_plate_dims = sum(len(p.size) for p in factor_site.plates)
                     dims = []
                     offset = 0
+
                     for p in factor_site.plates:
                         n = len(p.size)
+                    
                         if p not in step_plate_set:
                             for k in range(n):
                                 dims.append(-(total_plate_dims - offset - k))
+                    
                         offset += n
-                    return dims
+
+                    # Batch dimensions are not summed out, so we need to shift the
+                    # negative indices by the number of batch dims.
+                    dims = [ dim - len(self._batch_shape) for dim in dims ]
+
+                    return tuple(dims)
 
                 ordered_factor_sites = [
                     (fs, _extra_plate_dims(fs))
@@ -469,26 +477,35 @@ class Model():
                 ]
 
                 def log_prob_func(step, state):
+                    """
+                    Evaluate the total conditional log-probability for the step sites
+                    given the current state. This is computed by summing
+                    the log-probabilities of the factor sites, taking into account
+                    any extra plate dimensions that need to be summed out.
+                    """
+
                     total_log_prob = None
 
-                    # TODO: This is going to be the tricky part. If any of the edges
-                    #       that need to be evaluated here cross plate boundaries, we need
-                    #       to sum out the extra plate dimensions to get the correct shape for
-                    #       the log-probability.
+                    # If any of the edges that need to be evaluated here cross plate boundaries,
+                    # we need to sum out the extra plate dimensions to get the correct shape for
+                    # the log-probability.
 
                     for factor_site, plate_dims in ordered_factor_sites:
                         site_log_prob = factor_site.log_prob(state)
+
+                        # TODO: if the site is affected by a selector, this is the
+                        #       place to apply the mask before summing out the extra plate dimensions.
+
+                        # Sum out any extra plate dimensions
                         if plate_dims:
                             site_log_prob = site_log_prob.sum(plate_dims)
+                        
                         if total_log_prob is None:
                             total_log_prob = site_log_prob
                         else:
                             total_log_prob = total_log_prob + site_log_prob
 
-                    if total_log_prob is not None:
-                        return total_log_prob
-                    else:
-                        raise RuntimeError(f"No factor sites found for step '{name}'. Cannot compute log_prob.")
+                    return total_log_prob
 
             step = Step(
                 name,
