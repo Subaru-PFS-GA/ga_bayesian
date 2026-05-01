@@ -6,13 +6,12 @@ class GibbsKernel(Kernel):
     def __init__(self, model):
         super().__init__(model)
 
-    def step(self, state):
-        init_state = state
+    def step(self, init_state):
         final_state = {}
     
         for name, step in self.model.steps.items():
             step_state = {}
-            step.propose(init_state, step_state)
+            step.propose(step_state)
             lp_init = step.log_prob(init_state)
             lp_final = step.log_prob({ **init_state, **step_state })
             self.accept(init_state, step_state, lp_init, lp_final)

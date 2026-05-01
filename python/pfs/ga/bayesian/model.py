@@ -471,6 +471,11 @@ class Model():
                 def log_prob_func(step, state):
                     total_log_prob = None
 
+                    # TODO: This is going to be the tricky part. If any of the edges
+                    #       that need to be evaluated here cross plate boundaries, we need
+                    #       to sum out the extra plate dimensions to get the correct shape for
+                    #       the log-probability.
+
                     for factor_site, plate_dims in ordered_factor_sites:
                         site_log_prob = factor_site.log_prob(state)
                         if plate_dims:
@@ -570,6 +575,12 @@ class Model():
     steps = property(__get_steps)
 
     #endregion
+
+    def reset(self):
+        self.__batch_shape = ()
+        self.__sites.clear()
+        self.__plates.clear()
+        self.__steps.clear()
 
     def model(self, context):
         raise NotImplementedError("The 'model' method must be implemented by the subclass.")

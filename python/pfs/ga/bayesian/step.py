@@ -35,11 +35,11 @@ class Step():
 
     #endregion
     
-    def propose(self, init_state, final_state):
-        return self.__propose_func(init_state, final_state)
+    def propose(self, step_state):
+        return self.__propose_func(self, step_state)
 
     def update(self, final_state):
-        return self.__update_func(final_state)
+        return self.__update_func(self, final_state)
 
     def log_prob(self, state):
-        return self.__log_prob_func(state)
+        return self.__log_prob_func(self, state)
