@@ -117,11 +117,17 @@ class Model():
         Base context class for managing the state and operations within a model.
         """
 
-        def __init__(self, model):
+        def __init__(self, model, state={}):
             self.__model = model
+            self.__state = state
             self._plate_stack = []
 
         #region Properties
+
+        def __get_state(self):
+            return self.__state
+        
+        state = property(__get_state)
 
         def __get_model(self):
             return self.__model
@@ -194,9 +200,10 @@ class Model():
         variables and their dependencies to construct the computational graph of the model.
         """
 
-        def __init__(self, model):
-            super().__init__(model)
-            self._deterministic_index = 0
+        def __init__(self, model, batch_shape=()):
+            super().__init__(model, state={})
+
+            self._batch_shape = batch_shape
             
         def _collect_parents(self, value, parents):
             """
@@ -295,14 +302,31 @@ class Model():
             # should be expanded to match the batch shape of the active plates. If the parents
             # have the same plate context as the new site, then no expansion is needed.
             if parents:
+                # TODO: what if we go outside a plate? Is that possible?
+
+                # Detect any plate boundary crossings by comparing parent plates and active plates.
+                # Plates that the parent sites live in
                 parent_plates = set(plate for parent in parents for plate in parent.plates)
+                # Active plates that the current site is in
                 active_plates = set(self._plate_stack)
                 
                 if not parent_plates.issubset(active_plates):
                     raise ValueError(f"Invalid dependency from site '{name}' to parent site(s) {[parent.name for parent in parents]} across plate boundaries.")
 
                 if parent_plates != active_plates:
-                    dist = self._expand_distribution(dist, parent_plates)
+                    # This is not a root site, so it already inherits the batch shape via its parents
+                    dist = self._expand_distribution(
+                        dist,
+                        parent_plates,
+                        batch_shape=()
+                    )
+            else:
+                # This is a root site so we need to expand it to match the batch shape
+                dist = self._expand_distribution(
+                    dist,
+                    parent_plates = set(),
+                    batch_shape = self._batch_shape
+                )
 
             dist = self._sanitize_distribution(dist)
             
@@ -317,7 +341,10 @@ class Model():
             self.model.sites[name] = site
             setattr(self.model, name, site)
 
-            return Model._TraceTensor(dist.sample(), site=site)
+            value = dist.sample()
+            site.set(self.state, value)
+
+            return Model._TraceTensor(value, site=site)
         
         def select(self, name, values, indices):
             if name in self.model.sites:
@@ -356,60 +383,11 @@ class Model():
             if isinstance(selected, Model._TraceTensor):
                 selected = selected.raw()
 
+            # TODO: evaluate and set value
+            raise NotImplementedError("Selection sites are not fully implemented yet.")
+
             return Model._TraceTensor(selected, site=s)
-
-    class _SampleContext(_Context):
-        def __init__(self, model, state, batch_shape=()):
-            super().__init__(model)
-            self.__state = state
-            self.__batch_shape = batch_shape
-
-        #region Properties
-
-        def __get_state(self):
-            return self.__state
-
-        state = property(__get_state)
-
-        def __get_batch_shape(self):
-            return self.__batch_shape
-
-        batch_shape = property(__get_batch_shape)
-
-        #endregion
-
-        def sample(self, name, dist, observed=False):
-            """
-            Sample a value from the given distribution, optionally using an observed value.
-
-            If the site is observed and a value is already present in the state, return the observed value.
-            Otherwise, sample a new value from the distribution and store it in the state.
-            """
-
-            site = self.model.sites.get(name)
-            is_root_site = site is None or len(site.parents) == 0
-            batch_shape = self.batch_shape if is_root_site else None
-            parent_plates = set(plate for parent in site.parents for plate in parent.plates)
-            
-            dist = self._expand_distribution(dist, parent_plates, batch_shape=batch_shape)
-
-            if observed and name in self.state:
-                return self.state[name]
-
-            value = dist.sample()
-            site.set(self.state, value)
-            return value
-
-        def select(self, name, values, indices):
-            """
-            Select a value from the given list of tensors using the provided indices
-            and store it in a new deterministic site.
-            """
-
-            value = torch.select(values, indices)
-            self.state[name] = value
-            return value
-
+        
         def step(
             self,
             name,
@@ -518,9 +496,54 @@ class Model():
 
             self.model.steps[name] = step
 
+    class _SampleContext(_Context):
+        def __init__(self, model, state=None, batch_shape=()):
+            super().__init__(model, state=state)
+
+            self.__batch_shape = batch_shape
+
+        def __get_batch_shape(self):
+            return self.__batch_shape
+
+        batch_shape = property(__get_batch_shape)
+
+        def sample(self, name, dist, observed=False):
+            """
+            Sample a value from the given distribution, optionally using an observed value.
+
+            If the site is observed and a value is already present in the state, return the observed value.
+            Otherwise, sample a new value from the distribution and store it in the state.
+            """
+
+            site = self.model.sites.get(name)
+            is_root_site = site is None or len(site.parents) == 0
+            batch_shape = self.__batch_shape if is_root_site else None
+            parent_plates = set(plate for parent in site.parents for plate in parent.plates)
+            
+            dist = self._expand_distribution(dist, parent_plates, batch_shape=batch_shape)
+
+            if observed and name in self.state:
+                return self.state[name]
+
+            value = dist.sample()
+            site.set(self.state, value)
+            return value
+
+        def select(self, name, values, indices):
+            """
+            Select a value from the given list of tensors using the provided indices
+            and store it in a new deterministic site.
+            """
+
+            site = self.model.sites.get(name)
+            value = torch.select(values, indices)
+            site.set(self.state, value)
+            return value
+
     def __init__(self, dtype=Defaults.dtype):
         self.__dtype = dtype
 
+        self.__batch_shape = ()
         self.__sites = OrderedDict()
         self.__plates = OrderedDict()
         self.__steps = OrderedDict()
@@ -552,22 +575,36 @@ class Model():
     def model(self, context):
         raise NotImplementedError("The 'model' method must be implemented by the subclass.")
     
-    def sample(self, state=Constants.MISSING, batch_shape=()):
-        if batch_shape is Constants.MISSING or batch_shape is None:
-            batch_shape = ()
-        elif isinstance(batch_shape, int):
-            batch_shape = (batch_shape,)
-        else:
-            batch_shape = tuple(batch_shape)
-        
+    def build(self, batch_shape=()):
+        """
+        Build the model by executing the model definition with a build context to trace
+        the variables and their dependencies. Then sample from the model with the given
+        batch shape to initialize the proposals.
+        """
+
+        with torch.no_grad():
+            # Trace the model variables and their dependencies to build the network
+            build_context = Model._BuildContext(self, batch_shape=batch_shape)
+            self.__batch_shape = batch_shape
+            self.model(build_context)
+
+            # Sample from the model to initialize proposals
+            # sample_context = Model._SampleContext(self, state={})
+            # self.model(sample_context)
+
+            # Call the step functions to allow proposals to initialize their internal
+            # state based on the initial samples
+            self.step(build_context)
+
+        return build_context
+    
+    def sample(self, state=Constants.MISSING):
         state = state if state is not Constants.MISSING else {}
 
         if not self.sites:
-            build_context = Model._BuildContext(self)
-            with torch.no_grad():
-                self.model(build_context)
+            raise RuntimeError("Model has not been built yet. Call 'build()' before sampling.")
 
-        sample_context = Model._SampleContext(self, state, batch_shape=batch_shape)
+        sample_context = Model._SampleContext(self, state, batch_shape=self.__batch_shape)
         with torch.no_grad():
             self.model(sample_context)
 

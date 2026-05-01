@@ -26,12 +26,7 @@ class TestModelSimple(unittest.TestCase):
     def test_step(self):
         def step_helper(N=(100,), C=()):
             model = Simple(N=N)
-            context = model._BuildContext(model)
-            model.model(context)
-
-            context = model._SampleContext(model, state={}, batch_shape=C)
-            model.model(context)
-            model.step(context, context.state)
+            model.build(batch_shape=C)
 
             # Verify the Gibbs sampling steps are defined for the correct variables
             self.assertIn('theta', model.steps)
@@ -48,16 +43,12 @@ class TestModelSimple(unittest.TestCase):
     def test_sample(self):
         def sample_helper(N=(100,), C=()):
             model = Simple(N=N)
-            context = model._BuildContext(model)
-            model.model(context)
+            model.build(batch_shape=C)
+            state = model.sample()
 
-            context = model._SampleContext(model, state={}, batch_shape=C)
-            model.model(context)
-            model.step(context, context.state)
-
-            self.assertEqual(model.theta.shape(context.state), C)
-            self.assertEqual(model.x.shape(context.state), N + C)
-            self.assertEqual(model.obs.shape(context.state), N + C)
+            self.assertEqual(model.theta.shape(state), C)
+            self.assertEqual(model.x.shape(state), N + C)
+            self.assertEqual(model.obs.shape(state), N + C)
 
         sample_helper()
         sample_helper(C=(10,))
@@ -65,20 +56,16 @@ class TestModelSimple(unittest.TestCase):
     def test_log_prob(self):
         def log_prob_helper(N=(100,), C=()):
             model = Simple(N=N)
-            context = model._BuildContext(model)
-            model.model(context)
+            model.build(batch_shape=C)
+            state = model.sample()
 
-            context = model._SampleContext(model, state={}, batch_shape=C)
-            model.model(context)
-            model.step(context, context.state)
-
-            lp_theta = model.theta.log_prob(context.state)
-            lp_x = model.x.log_prob(context.state)
-            lp_obs = model.obs.log_prob(context.state)
+            lp_theta = model.theta.log_prob(state)
+            lp_x = model.x.log_prob(state)
+            lp_obs = model.obs.log_prob(state)
 
             self.assertEqual(lp_theta.shape, C)
             self.assertEqual(lp_x.shape, N + C)
             self.assertEqual(lp_obs.shape, N + C)
 
-        # log_prob_helper()
+        log_prob_helper()
         log_prob_helper(C=(10,))
