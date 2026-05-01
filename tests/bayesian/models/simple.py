@@ -19,7 +19,7 @@ class Simple(Model):
 
         with context.plate('n', N):
             x = context.sample('x', Normal(theta, 1.0))
-            obs = context.sample('obs', Normal(x, 0.5))
+            obs = context.sample('obs', Normal(x, 0.5), observed=True)
 
     def step(self, context, state):
         context.step('theta', [ self.theta ], proposal=NormalProposal(self.theta.value(state), 0.5))
