@@ -484,6 +484,10 @@ class Model():
                     any extra plate dimensions that need to be summed out.
                     """
 
+                    # Rebuild distributions from the current state so log_prob
+                    # is evaluated with up-to-date parent-dependent parameters.
+                    self.model.refresh(state)
+
                     total_log_prob = None
 
                     # If any of the edges that need to be evaluated here cross plate boundaries,
@@ -519,6 +523,10 @@ class Model():
             self.model.steps[name] = step
 
     class _SampleContext(_Context):
+        """
+        Sample context used to execute the model definition and sample from the model.
+        """
+
         def __init__(self, model, state=None, batch_shape=()):
             super().__init__(model, state=state)
 
@@ -558,7 +566,25 @@ class Model():
             """
 
             site = self.model.sites.get(name)
-            site.set(self.state)
+            site.set(self.state)                # Evaluate the selection
+            return site.value(self.state)
+
+    class _RefreshContext(_Context):
+        """
+        Replay context used to refresh each site's distribution parameters from
+        the current state without resampling values.
+        """
+
+        def __init__(self, model, state, batch_shape=()):
+            super().__init__(model, state=state)
+
+        def sample(self, name, dist, observed=False):
+            site = self.model.sites.get(name)
+            site.dist = dist                    # Update the distribution parameters
+            return site.value(self.state)
+
+        def select(self, name, values, indices):
+            site = self.model.sites.get(name)
             return site.value(self.state)
 
     def __init__(self, dtype=Defaults.dtype):
@@ -634,6 +660,16 @@ class Model():
         sample_context = Model._SampleContext(self, state, batch_shape=self.__batch_shape)
         with torch.no_grad():
             self.model(sample_context)
+
+        return state
+
+    def refresh(self, state):
+        if not self.sites:
+            raise RuntimeError("Model has not been built yet. Call 'build()' before refreshing.")
+
+        refresh_context = Model._RefreshContext(self, state, batch_shape=self.__batch_shape)
+        with torch.no_grad():
+            self.model(refresh_context)
 
         return state
 

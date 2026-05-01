@@ -12,12 +12,15 @@ class Variable(Site):
 
     def __get_dist(self):
         return self.__dist
+
+    def __set_dist(self, dist):
+        self.__dist = dist
     
-    dist = property(__get_dist)
+    dist = property(__get_dist, __set_dist)
 
     #endregion
 
-    def __get_dist(self, state):
+    def __resolve_dist(self, state):
         if isinstance(self.__dist, Distribution):
             return self.__dist
         elif callable(self.__dist):
@@ -37,7 +40,7 @@ class Variable(Site):
             Keyword arguments to be passed to the distribution's ``sample`` method.
         """
 
-        dist = self.__get_dist(state)
+        dist = self.__resolve_dist(state)
         value = dist.sample(*args, **kwargs)
         state[self.name] = value
         return value
@@ -62,5 +65,5 @@ class Variable(Site):
         return state[self.name].shape
     
     def log_prob(self, state):
-        dist = self.__get_dist(state)
+        dist = self.__resolve_dist(state)
         return dist.log_prob(self.value(state))
