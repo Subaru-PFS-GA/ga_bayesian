@@ -7,10 +7,9 @@ class Blanket:
     - selections: Selection nodes traversed to recover the full blanket
     """
 
-    def __init__(self, sites, selections=None, edges=None):
+    def __init__(self, sites, selections=None):
         self.__sites = list(sites)
         self.__selections = list(selections) if selections is not None else []
-        self.__edges = list(edges) if edges is not None else []
 
     #region Properties
 
@@ -28,11 +27,6 @@ class Blanket:
         return len(self.__selections) > 0
 
     has_selector = property(__get_has_selector)
-
-    def __get_edges(self):
-        return list(self.__edges)
-
-    edges = property(__get_edges)
 
     #endregion
 

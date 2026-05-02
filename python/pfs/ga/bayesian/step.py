@@ -10,6 +10,8 @@ class Step():
         propose_func,
         update_func,
         log_prob_func,
+        factor_sites=None,
+        plate_dims=None,
     ):
         
         self.__name = name
@@ -18,6 +20,8 @@ class Step():
         self.__propose_func = propose_func
         self.__update_func = update_func
         self.__log_prob_func = log_prob_func
+        self.__factor_sites = list(factor_sites) if factor_sites is not None else []
+        self.__plate_dims = dict(plate_dims) if plate_dims is not None else {}
 
     #region Properties
 
@@ -35,6 +39,16 @@ class Step():
         return self.__proposal
     
     proposal = property(__get_proposal)
+
+    def __get_factor_sites(self):
+        return list(self.__factor_sites)
+
+    factor_sites = property(__get_factor_sites)
+
+    def __get_plate_dims(self):
+        return dict(self.__plate_dims)
+
+    plate_dims = property(__get_plate_dims)
 
     #endregion
     

@@ -81,20 +81,12 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.z, blanket_w)
         self.assertFalse(blanket_w.has_selector)
         self.assertEqual(len(blanket_w.selections), 0)
-        self.assertEqual(len(blanket_w.edges), 1)
-        self.assertEqual(blanket_w.edges[0].source, model.w)
-        self.assertEqual(blanket_w.edges[0].target, model.z)
-        self.assertEqual(blanket_w.edges[0].role, 'child')
 
         blanket_theta_1 = model.markov_blanket(model.theta_1)
         self.assertEqual(len(blanket_theta_1), 1)
         self.assertIn(model.x_1, blanket_theta_1)
         self.assertFalse(blanket_theta_1.has_selector)
         self.assertEqual(len(blanket_theta_1.selections), 0)
-        self.assertEqual(len(blanket_theta_1.edges), 1)
-        self.assertEqual(blanket_theta_1.edges[0].source, model.theta_1)
-        self.assertEqual(blanket_theta_1.edges[0].target, model.x_1)
-        self.assertEqual(blanket_theta_1.edges[0].role, 'child')
 
         blanket_theta_2 = model.markov_blanket(model.theta_2)
         self.assertEqual(len(blanket_theta_2), 1)
@@ -111,21 +103,6 @@ class TestModelMixture(unittest.TestCase):
         self.assertTrue(blanket_z.has_selector)
         self.assertIn(model.x, blanket_z.selections)
 
-        edge_z_parent = [edge for edge in blanket_z.edges if edge.source is model.w and edge.target is model.z and edge.role == 'parent']
-        self.assertEqual(len(edge_z_parent), 1)
-        self.assertEqual(len(edge_z_parent[0].selections), 0)
-
-        edge_z_child = [edge for edge in blanket_z.edges if edge.source is model.z and edge.target is model.obs and edge.role == 'child']
-        self.assertEqual(len(edge_z_child), 1)
-        self.assertIn(model.x, edge_z_child[0].selections)
-
-        edge_z_coparent_1 = [edge for edge in blanket_z.edges if edge.source is model.x_1 and edge.target is model.obs and edge.role == 'coparent']
-        edge_z_coparent_2 = [edge for edge in blanket_z.edges if edge.source is model.x_2 and edge.target is model.obs and edge.role == 'coparent']
-        self.assertEqual(len(edge_z_coparent_1), 1)
-        self.assertEqual(len(edge_z_coparent_2), 1)
-        self.assertIn(model.x, edge_z_coparent_1[0].selections)
-        self.assertIn(model.x, edge_z_coparent_2[0].selections)
-
         blanket_x_1 = model.markov_blanket(model.x_1)
         self.assertEqual(len(blanket_x_1), 4)
         self.assertIn(model.theta_1, blanket_x_1)
@@ -134,7 +111,6 @@ class TestModelMixture(unittest.TestCase):
         self.assertIn(model.obs, blanket_x_1)
         self.assertTrue(blanket_x_1.has_selector)
         self.assertIn(model.x, blanket_x_1.selections)
-        self.assertEqual(len(blanket_x_1.edges), 4)
 
         blanket_x_2 = model.markov_blanket(model.x_2)
         self.assertEqual(len(blanket_x_2), 4)
@@ -162,18 +138,58 @@ class TestModelMixture(unittest.TestCase):
         self.assertTrue(blanket_obs.has_selector)
         self.assertIn(model.x, blanket_obs.selections)
 
-        edge_obs_parent_z = [edge for edge in blanket_obs.edges if edge.source is model.z and edge.target is model.obs and edge.role == 'parent']
-        edge_obs_parent_x1 = [edge for edge in blanket_obs.edges if edge.source is model.x_1 and edge.target is model.obs and edge.role == 'parent']
-        edge_obs_parent_x2 = [edge for edge in blanket_obs.edges if edge.source is model.x_2 and edge.target is model.obs and edge.role == 'parent']
-        self.assertEqual(len(edge_obs_parent_z), 1)
-        self.assertEqual(len(edge_obs_parent_x1), 1)
-        self.assertEqual(len(edge_obs_parent_x2), 1)
-        self.assertIn(model.x, edge_obs_parent_z[0].selections)
-        self.assertIn(model.x, edge_obs_parent_x1[0].selections)
-        self.assertIn(model.x, edge_obs_parent_x2[0].selections)
+    def test_factor_graph(self):
+        model = Mixture()
+        model.build()
 
-    def test_log_prob(self):
-        def log_prob_helper(N=(100,), C=()):
+        factor_graph = model.factor_graph
+
+        self.assertIsNotNone(factor_graph)
+        self.assertEqual(len(factor_graph.sites), 7)
+        self.assertEqual(len(factor_graph.factors), 7)
+
+        factors_by_site_name = { factor.site.name: factor for factor in factor_graph.factors }
+
+        # Root stochastic sites only depend on themselves.
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["w"].scope],
+            ["w"],
+        )
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["theta_1"].scope],
+            ["theta_1"],
+        )
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["theta_2"].scope],
+            ["theta_2"],
+        )
+
+        # z depends directly on w.
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["z"].scope],
+            ["w", "z"],
+        )
+
+        # x_1/x_2 depend on their corresponding theta variables and on z,
+        # because downstream selection nodes gate their contribution.
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["x_1"].scope],
+            ["theta_1", "z", "x_1"],
+        )
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["x_2"].scope],
+            ["theta_2", "z", "x_2"],
+        )
+
+        # obs depends on x (deterministic selection), so the factor scope includes
+        # the stochastic ancestors of x: z, x_1, x_2, plus obs itself.
+        self.assertEqual(
+            [site.name for site in factors_by_site_name["obs"].scope],
+            ["z", "x_1", "x_2", "obs"],
+        )
+
+    def test_site_log_prob(self):
+        def site_log_prob_helper(N=(100,), C=()):
             model = Mixture(N=N)
             model.build(batch_shape=C)
             state = model.sample()
@@ -199,6 +215,47 @@ class TestModelMixture(unittest.TestCase):
             lp = model.obs.log_prob(state)
             self.assertEqual(lp.shape, N + C)
 
-        log_prob_helper()
-        log_prob_helper(C=(10,))
+        site_log_prob_helper()
+        site_log_prob_helper(C=(10,))
         
+    def test_step_log_prob(self):
+        def step_log_prob_helper(N=(100,), C=()):
+            model = Mixture(N=N)
+            model.build(batch_shape=C)
+            state = model.sample()
+
+            # Verify the shape of the log probabilities for each step
+            self.assertEqual(model.steps['w'].log_prob(state).shape, C)
+            
+            self.assertEqual(model.steps['theta_1'].log_prob(state).shape, C)
+            self.assertEqual(model.steps['theta_2'].log_prob(state).shape, C)
+
+            self.assertEqual(model.steps['z'].log_prob(state).shape, N + C)
+
+            self.assertEqual(model.steps['x_1'].log_prob(state).shape, N + C)
+            self.assertEqual(model.steps['x_2'].log_prob(state).shape, N + C)
+
+        step_log_prob_helper()
+        step_log_prob_helper(C=(10,))
+
+    def test_step_log_prob_gating(self):
+        model = Mixture(N=(50,))
+        model.build()
+
+        state = model.sample()
+
+        # Force all gates to select x_2. Under this configuration, the Gibbs
+        # conditional for x_1 should not depend on x_1 values.
+        gated_state = dict(state)
+        gated_state[model.z.name] = torch.ones_like(model.z.value(state))
+
+        state_a = dict(gated_state)
+        state_b = dict(gated_state)
+
+        state_a[model.x_1.name] = model.x_1.value(gated_state) + torch.randn_like(model.x_1.value(gated_state))
+        state_b[model.x_1.name] = model.x_1.value(gated_state) + 3.0 * torch.randn_like(model.x_1.value(gated_state))
+
+        lp_a = model.steps['x_1'].log_prob(state_a)
+        lp_b = model.steps['x_1'].log_prob(state_b)
+
+        torch.testing.assert_close(lp_a, lp_b)

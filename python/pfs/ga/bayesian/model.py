@@ -12,7 +12,8 @@ from .proposal import Proposal
 from .step import Step
 from .plate import Plate
 from .blanket import Blanket
-from .edge import Edge
+from .factorgraph import Factor
+from .factorgraph import FactorGraph
 
 class Model():
 
@@ -350,10 +351,18 @@ class Model():
             if name in self.model.sites:
                 raise ValueError(f"Site '{name}' already exists in the model.")
 
-            parents = []
-            self._collect_parents(values, parents)
-            self._collect_parents(indices, parents)
-            parents = Model._TraceTensor._deduplicate_sites(parents)
+            # Collect input-value parents separately so we can register the
+            # Selection site as a selector on each of them.
+            input_parents = []
+            self._collect_parents(values, input_parents)
+            input_parents = Model._TraceTensor._deduplicate_sites(input_parents)
+
+            # The selector is the single direct site behind the index expression.
+            selector_site = getattr(indices, "_trace_site", None) if isinstance(indices, Model._TraceTensor) else None
+            
+            # The parents of the selection site include the input-value parents and the selector site (if any).
+            index_parents = [selector_site] if selector_site is not None else []
+            parents = Model._TraceTensor._deduplicate_sites(input_parents + index_parents)
 
             values_extractor = self._parent_value_extractor(values)
             indices_extractor = self._parent_value_extractor(indices)
@@ -369,12 +378,16 @@ class Model():
                 eval_func,
                 parents=parents,
                 plates=list(self._plate_stack),
-                input_values=values,
-                selector=indices,
+                selector=selector_site,
             )
 
             for parent in parents:
                 parent.children.append(site)
+
+            # Register the Selection site as a selector on each input-value site
+            # so that every site knows which selectors apply to it.
+            for parent in input_parents:
+                parent.selectors.append(site)
 
             self.model.sites[name] = site
             setattr(self.model, name, site)
@@ -425,62 +438,66 @@ class Model():
                         sample = step.sites[0].value(state)
                     step.proposal.update(sample)
 
+            # Compute and persist factor-site metadata for this step. This is used by
+            # the default log_prob implementation and made available for custom ones.
+            step_site_set = set(sites)
+
+            # Plates that the step sites already live in - used to detect
+            # plate-boundary crossings when summing child log-probs.
+            step_plates = set(p for s in sites for p in s.plates)
+
+            # Select all factors that touch this step block, then evaluate their
+            # corresponding stochastic site log-probabilities.
+            factor_sites = set()
+            for factor in self.model.factor_graph.factors:
+                if any(site in step_site_set for site in factor.scope):
+                    factor_sites.add(factor.site)
+
+            # For each factor site, precompute the tensor dimensions (as
+            # negative indices) that correspond to plates not present in the
+            # step sites. Those dimensions must be summed out so that the
+            # returned log-prob has the same shape as the step-site values.
+            def _extra_plate_dims(factor_site):
+                total_plate_dims = sum(len(p.size) for p in factor_site.plates)
+                dims = []
+                offset = 0
+
+                for p in factor_site.plates:
+                    n = len(p.size)
+
+                    if p not in step_plates:
+                        for k in range(n):
+                            dims.append(-(total_plate_dims - offset - k))
+
+                    offset += n
+
+                # Batch dimensions are not summed out, so we need to shift the
+                # negative indices by the number of batch dims.
+                dims = [ dim - len(self._batch_shape) for dim in dims ]
+
+                return tuple(dims)
+
+            ordered_factor_sites = [
+                fs
+                for fs in self.model.sites.values()
+                if fs in factor_sites and isinstance(fs, Variable)
+            ]
+
+            step_plate_dims = {
+                fs: _extra_plate_dims(fs)
+                for fs in ordered_factor_sites
+            }
+
             # If not provided, generate a default log_prob_func that computes the
             # log-probability of the full conditional distribution for the step sites
 
             if log_prob_func is Constants.MISSING:
-                # Get the Markov blanket for the step sites
-                blanket = self.model.markov_blanket(sites, include_sites=True)
-
-                # Plates that the step sites already live in — used to detect
-                # plate-boundary crossings when summing child log-probs.
-                step_plate_set = set(p for step_site in sites for p in step_site.plates)
-
-                # Collect the stochastic factor sites implied by blanket edges.
-                factor_sites = set(sites)
-                for edge in blanket.edges:
-                    factor_sites.add(edge.target)
-
-                # For each factor site, precompute the tensor dimensions (as
-                # negative indices) that correspond to plates not present in the
-                # step sites.  Those dimensions must be summed out so that the
-                # returned log-prob has the same shape as the step-site values.
-                #
-                # plate.size is a tuple, so each plate can contribute multiple
-                # consecutive dims.  We walk the factor site's plate list in
-                # order (outer to inner) and record negative indices for every
-                # dim belonging to an extra plate.
-                def _extra_plate_dims(factor_site):
-                    total_plate_dims = sum(len(p.size) for p in factor_site.plates)
-                    dims = []
-                    offset = 0
-
-                    for p in factor_site.plates:
-                        n = len(p.size)
-                    
-                        if p not in step_plate_set:
-                            for k in range(n):
-                                dims.append(-(total_plate_dims - offset - k))
-                    
-                        offset += n
-
-                    # Batch dimensions are not summed out, so we need to shift the
-                    # negative indices by the number of batch dims.
-                    dims = [ dim - len(self._batch_shape) for dim in dims ]
-
-                    return tuple(dims)
-
-                ordered_factor_sites = [
-                    (fs, _extra_plate_dims(fs))
-                    for fs in self.model.sites.values()
-                    if fs in factor_sites and isinstance(fs, Variable)
-                ]
-
                 def log_prob_func(step, state):
                     """
                     Evaluate the total conditional log-probability for the step sites
                     given the current state. This is computed by summing
-                    the log-probabilities of the factor sites, taking into account
+                    the log-probabilities of all factors touching the step block,
+                    taking into account
                     any extra plate dimensions that need to be summed out.
                     """
 
@@ -494,11 +511,26 @@ class Model():
                     # we need to sum out the extra plate dimensions to get the correct shape for
                     # the log-probability.
 
-                    for factor_site, plate_dims in ordered_factor_sites:
+                    for factor_site in step.factor_sites:
+                        plate_dims = step.plate_dims[factor_site]
                         site_log_prob = factor_site.log_prob(state)
 
-                        # TODO: if the site is affected by a selector, this is the
-                        #       place to apply the mask before summing out the extra plate dimensions.
+                        # If a site is used as an input to one or more Selection nodes,
+                        # its factor contribution is gated by the corresponding selector
+                        # variable(s). When the selector points to a different input,
+                        # this site's factor should not contribute.
+                        for selection in factor_site.selectors:
+                            selector_site = selection.selector
+                            if selector_site is None:
+                                raise NotImplementedError("Selection sites must have a selector site.")
+
+                            input_sites = [parent for parent in selection.parents if parent is not selector_site]
+                            if factor_site not in input_sites:
+                                raise NotImplementedError("Only direct parents of a selector site can be gated by it.")
+
+                            gate_index = input_sites.index(factor_site)
+                            gate_mask = selector_site.value(state) == gate_index
+                            site_log_prob = torch.where(gate_mask, site_log_prob, torch.zeros_like(site_log_prob))
 
                         # Sum out any extra plate dimensions
                         if plate_dims:
@@ -517,7 +549,9 @@ class Model():
                 proposal = proposal,
                 propose_func = propose_func,
                 update_func = update_func,
-                log_prob_func = log_prob_func
+                log_prob_func = log_prob_func,
+                factor_sites = ordered_factor_sites,
+                plate_dims = step_plate_dims,
             )
 
             self.model.steps[name] = step
@@ -594,6 +628,7 @@ class Model():
         self.__sites = OrderedDict()
         self.__plates = OrderedDict()
         self.__steps = OrderedDict()
+        self.__factor_graph = None
 
     #region Properties
 
@@ -617,6 +652,11 @@ class Model():
     
     steps = property(__get_steps)
 
+    def __get_factor_graph(self):
+        return self.__factor_graph
+
+    factor_graph = property(__get_factor_graph)
+
     #endregion
 
     def reset(self):
@@ -624,6 +664,7 @@ class Model():
         self.__sites.clear()
         self.__plates.clear()
         self.__steps.clear()
+        self.__factor_graph = None
 
     def model(self, context):
         raise NotImplementedError("The 'model' method must be implemented by the subclass.")
@@ -641,9 +682,8 @@ class Model():
             self.__batch_shape = batch_shape
             self.model(build_context)
 
-            # Sample from the model to initialize proposals
-            # sample_context = Model._SampleContext(self, state={})
-            # self.model(sample_context)
+            # Build a factor graph from the traced dependencies.
+            self.__factor_graph = self.__build_factor_graph()
 
             # Call the step functions to allow proposals to initialize their internal
             # state based on the initial samples
@@ -688,7 +728,98 @@ class Model():
 
         return sites
 
-    def markov_blanket(self, sites, *, include_sites=False):
+    def __build_factor_graph(self):
+        """
+        Construct a factor graph from the traced model.
+
+        One factor is created for each stochastic site. Each factor scope includes
+        the factor site itself and all stochastic ancestors that influence it through
+        deterministic chains.
+        """
+
+        stochastic_sites = [
+            site
+            for site in self.sites.values()
+            if isinstance(site, Variable)
+        ]
+
+        def stochastic_ancestors(site):
+            result = set()
+            visited = set()
+            frontier = list(site.parents)
+
+            while frontier:
+                current = frontier.pop()
+                current_id = id(current)
+
+                if current_id in visited:
+                    continue
+                visited.add(current_id)
+
+                if isinstance(current, Deterministic):
+                    frontier.extend(current.parents)
+                elif isinstance(current, Variable):
+                    result.add(current)
+
+            return result
+
+        def selector_dependencies(site):
+            """
+            Collect stochastic selector variables that can gate the contribution
+            of this site through downstream Selection nodes.
+            """
+
+            result = set()
+
+            def upstream_stochastic_sites(node):
+                deps = set()
+                visited = set()
+                frontier = [node]
+
+                while frontier:
+                    current = frontier.pop()
+                    current_id = id(current)
+
+                    if current_id in visited:
+                        continue
+                    visited.add(current_id)
+
+                    if isinstance(current, Deterministic):
+                        frontier.extend(current.parents)
+                    elif isinstance(current, Variable):
+                        deps.add(current)
+
+                return deps
+
+            for selection in site.selectors:
+                selector_site = selection.selector
+                if selector_site is None:
+                    continue
+                result.update(upstream_stochastic_sites(selector_site))
+
+            return result
+
+        factors = []
+        for factor_site in stochastic_sites:
+            deps = stochastic_ancestors(factor_site)
+            deps.update(selector_dependencies(factor_site))
+            scope = [
+                site
+                for site in stochastic_sites
+                if site == factor_site or site in deps
+            ]
+
+            factors.append(
+                Factor(
+                    name=f"f_{factor_site.name}",
+                    site=factor_site,
+                    scope=scope,
+                )
+            )
+
+        return FactorGraph(stochastic_sites, factors)
+
+    def markov_blanket(self, sites, *, include_query_sites=False):
         """
         Return the Markov blanket for one site or a set of sites.
 
@@ -707,7 +838,7 @@ class Model():
         -----------
         sites: Site or list of Site
             The site(s) for which to compute the Markov blanket.
-        include_sites: bool, optional
+        include_query_sites: bool, optional
             Whether to include the query site(s) themselves in the returned blanket. Default is False.
         """
 
@@ -715,18 +846,6 @@ class Model():
         query_set = set(query_sites)
         blanket = set()
         selectors = set()
-        edges = {}
-
-        def _add_edge(source, target, role, edge_selections):
-            key = (id(source), id(target), role)
-            if key in edges:
-                merged = set(edges[key].selections)
-                merged.update(edge_selections)
-                ordered_merged = [site for site in self.sites.values() if site in merged]
-                edges[key] = Edge(source, target, role, selections=ordered_merged)
-            else:
-                ordered = [site for site in self.sites.values() if site in edge_selections]
-                edges[key] = Edge(source, target, role, selections=ordered)
 
         def stochastic_ancestors(site):
             """
@@ -799,69 +918,25 @@ class Model():
             parents, parent_selectors = stochastic_ancestors(query_site)
             blanket.update(parents.keys())
             selectors.update(parent_selectors)
-            for parent_site, edge_selections in parents.items():
-                _add_edge(parent_site, query_site, "parent", edge_selections)
 
             # Children: follow deterministic chains downward from direct children
             children, child_selectors = stochastic_children(query_site)
             blanket.update(children.keys())
             selectors.update(child_selectors)
-            for child_site, edge_selections in children.items():
-                _add_edge(query_site, child_site, "child", edge_selections)
 
             # Co-parents: for each stochastic child, follow deterministic chains upward from its parents
             for child in children.keys():
                 coparents, coparent_selectors = stochastic_ancestors(child)
                 blanket.update(coparents.keys())
                 selectors.update(coparent_selectors)
-                for coparent_site, edge_selections in coparents.items():
-                    if coparent_site is query_site:
-                        continue
-                    _add_edge(coparent_site, child, "coparent", edge_selections)
 
-        if include_sites:
+        if include_query_sites:
             blanket.update(query_set)
         else:
             blanket.difference_update(query_set)
 
         ordered_blanket = [ site for site in self.sites.values() if site in blanket ]
         ordered_selectors = [ site for site in self.sites.values() if site in selectors ]
-        role_order = {"parent": 0, "child": 1, "coparent": 2}
-        site_order = {id(site): i for i, site in enumerate(self.sites.values())}
-        ordered_edges = sorted(
-            edges.values(),
-            key=lambda edge: (
-                site_order.get(id(edge.source), 10**9),
-                site_order.get(id(edge.target), 10**9),
-                role_order.get(edge.role, 10**9),
-            )
-        )
 
-        return Blanket(ordered_blanket, selections=ordered_selectors, edges=ordered_edges)
+        return Blanket(ordered_blanket, selections=ordered_selectors)
 
-    # def log_prob_markov_blanket(self, state, sites, *, include_sites=True):
-    #     """
-    #     Sum log-probability terms over the Markov blanket of the given site(s).
-
-    #     Deterministic sites are skipped because they do not define a probability term.
-    #     """
-
-    #     blanket_sites = self.markov_blanket(sites, include_sites=include_sites)
-
-    #     total_log_prob = None
-    #     for blanket_site in blanket_sites:
-    #         if not hasattr(blanket_site, "log_prob"):
-    #             continue
-
-    #         site_log_prob = blanket_site.log_prob(state)
-    #         if total_log_prob is None:
-    #             total_log_prob = site_log_prob
-    #         else:
-    #             total_log_prob = total_log_prob + site_log_prob
-
-    #     if total_log_prob is None:
-    #         query_site = self.__as_sites(sites)[0]
-    #         value = query_site.value(state)
-    #         return torch.zeros_like(value, dtype=value.dtype)
-
-    #     return total_log_prob
