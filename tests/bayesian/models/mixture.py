@@ -2,7 +2,6 @@ import torch
 
 from pfs.ga.bayesian import Constants
 from pfs.ga.bayesian import Model
-from pfs.ga.bayesian import torch_extensions
 from pfs.ga.bayesian.distributions import Uniform, Dirichlet, Categorical, Normal
 from pfs.ga.bayesian.proposals import DirichletProposal, CategoricalProposal, MultivariateNormalProposal, NormalProposal
 
