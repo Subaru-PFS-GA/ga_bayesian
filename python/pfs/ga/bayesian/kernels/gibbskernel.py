@@ -6,7 +6,7 @@ class GibbsKernel(Kernel):
     def __init__(self, model):
         super().__init__(model)
 
-    def step(self, init_state):
+    def step(self, init_state, accept_counts=None):
         final_state = {}
     
         for name, step in self.model.steps.items():
@@ -17,7 +17,14 @@ class GibbsKernel(Kernel):
 
             # Accept or reject the proposal, this will update step_state
             # to contain the accepted values
-            self.accept(init_state, step_state, lp_init, lp_final)
+            mask = self.accept(init_state, step_state, lp_init, lp_final)
+
+            # Track acceptance counts per instance
+            if accept_counts is not None:
+                if name in accept_counts:
+                    accept_counts[name] = accept_counts[name] + mask.long()
+                else:
+                    accept_counts[name] = mask.long()
 
             # Update the proposal distributions
             step.update(step_state)
@@ -39,6 +46,12 @@ class GibbsKernel(Kernel):
         # Assume final_state contains only the variables that are being updated
         lp_accept = lp_final - lp_init
         mask = torch.log(torch.rand(size=lp_accept.shape)) < lp_accept
+
         for key in step_state:
-            step_state[key] = torch.where(mask, step_state[key], init_state[key])
+            value = step_state[key]
+            extra_dims = value.dim() - mask.dim()
+            expanded_mask = mask.reshape(mask.shape + (1,) * extra_dims).expand_as(value)
+            step_state[key] = torch.where(expanded_mask, value, init_state[key])
+
+        return mask
         

@@ -59,21 +59,24 @@ class MCMC():
         self.__kernel.model.reset()
         self.__kernel.model.build(batch_shape=(self.__num_chains,))
 
+        # TODO: move this into the trace or elsewhere
+        accept_counts = {}
+
         if init_state is Constants.MISSING:
-            init_state = self.__generate_init_state()
+            current_state = self.__generate_init_state()
+        else:
+            current_state = init_state
 
         if observed is not Constants.MISSING:
-            self.__set_observed(init_state, observed, batch_shape=(self.__num_chains,))
+            self.__set_observed(current_state, observed, batch_shape=(self.__num_chains,))
 
         for i in self.__wrap_in_progress_bar(range(self.__num_warmup), label="Warmup"):
-            final_state = self.__kernel.step(init_state)
-            init_state = final_state
+            current_state = self.__kernel.step(current_state, accept_counts=accept_counts)
 
         for i in self.__wrap_in_progress_bar(range(self.__num_samples), label="Sampling"):
             # Save the current state to the trace
             if i % self.__thinning == 0:
-                self.__trace.append(init_state)
+                self.__trace.append(current_state)
 
-            final_state = self.__kernel.step(init_state)
-            init_state = final_state
+            current_state = self.__kernel.step(current_state, accept_counts=accept_counts)
             

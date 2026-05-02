@@ -51,7 +51,7 @@ class Mixture(Model):
         context.step(
             'z',
             [ self.z ],
-            proposal=CategoricalProposal(self.w.value(context.state).expand(self.N + self.w.value(context.state).shape))
+            proposal = CategoricalProposal(self.w.value(context.state).expand(self.N + self.w.value(context.state).shape))
         )
 
         context.step(

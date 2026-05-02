@@ -56,7 +56,7 @@ class NormalProposal(Proposal):
 
         delta = x - self.__loc
         self.__loc = self._gamma * self.__loc + (1 - self._gamma) * x
-        self.__var = self._gamma * self.__var + (1 - self._gamma) * delta * (x - self.__loc)
+        self.__var = self._gamma * self.__var + (1 - self._gamma) * delta ** 2
 
         if self.__eps is not None:
             min_var = self.__eps * self.__eps
@@ -65,4 +65,4 @@ class NormalProposal(Proposal):
         self.__scale = torch.sqrt(self.__var)
 
     def _create_dist_impl(self):
-        return Normal(self.__loc_zero, self.__mcmc_scale * self.__scale)
+        return Normal(self.__loc, self.__mcmc_scale * self.__scale)

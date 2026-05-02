@@ -1,3 +1,4 @@
+import torch
 from torch.distributions import Distribution
 
 from .site import Site

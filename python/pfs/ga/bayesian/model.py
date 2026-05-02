@@ -368,10 +368,11 @@ class Model():
             indices_extractor = self._parent_value_extractor(indices)
 
             def eval_func(state):
-                return torch.select(
-                    values_extractor(state),
-                    indices_extractor(state)
-                )
+                return torch.gather(
+                    torch.stack(values_extractor(state), dim=-1),
+                    dim = -1,
+                    index = indices_extractor(state).unsqueeze(-1)
+                ).squeeze(-1)
 
             site = Selection(
                 name,
@@ -392,7 +393,12 @@ class Model():
             self.model.sites[name] = site
             setattr(self.model, name, site)
 
-            selected = torch.select(values, indices)
+            selected = torch.gather(
+                torch.stack(values, dim=-1),
+                dim = -1,
+                index = indices.unsqueeze(-1)
+            ).squeeze(-1)
+
             if isinstance(selected, Model._TraceTensor):
                 selected = selected.raw()
 
@@ -516,21 +522,22 @@ class Model():
                         site_log_prob = factor_site.log_prob(state)
 
                         # If a site is used as an input to one or more Selection nodes,
-                        # its factor contribution is gated by the corresponding selector
-                        # variable(s). When the selector points to a different input,
-                        # this site's factor should not contribute.
-                        for selection in factor_site.selectors:
-                            selector_site = selection.selector
-                            if selector_site is None:
-                                raise NotImplementedError("Selection sites must have a selector site.")
+                        # its factor contribution can be gated by the corresponding selector
+                        # variable(s). Do not gate step-site factors themselves, otherwise
+                        # the prior term of a sampled latent variable can be turned off.
+                        if factor_site not in step_site_set:
+                            for selection in factor_site.selectors:
+                                selector_site = selection.selector
+                                if selector_site is None:
+                                    raise NotImplementedError("Selection sites must have a selector site.")
 
-                            input_sites = [parent for parent in selection.parents if parent is not selector_site]
-                            if factor_site not in input_sites:
-                                raise NotImplementedError("Only direct parents of a selector site can be gated by it.")
+                                input_sites = [parent for parent in selection.parents if parent is not selector_site]
+                                if factor_site not in input_sites:
+                                    raise NotImplementedError("Only direct parents of a selector site can be gated by it.")
 
-                            gate_index = input_sites.index(factor_site)
-                            gate_mask = selector_site.value(state) == gate_index
-                            site_log_prob = torch.where(gate_mask, site_log_prob, torch.zeros_like(site_log_prob))
+                                gate_index = input_sites.index(factor_site)
+                                gate_mask = selector_site.value(state) == gate_index
+                                site_log_prob = torch.where(gate_mask, site_log_prob, torch.zeros_like(site_log_prob))
 
                         # Sum out any extra plate dimensions
                         if plate_dims:

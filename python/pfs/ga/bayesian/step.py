@@ -1,5 +1,6 @@
 import torch
-from torch.distributions.constraints import real, interval
+from torch.distributions.constraints import real, simplex
+from torch.distributions.constraints import interval, integer_interval
 
 class Step():
     def __init__(
@@ -59,14 +60,16 @@ class Step():
 
         # Add the proposed values to the step state
         for site in self.__sites:
-            value = site.value(current_state)
-            delta = step_state[site.name]
-
-            v = value + delta
+            v = site.value(step_state)
 
             # If the distribution of the site is bounded,
             # we need to reflect the proposed value if it goes out of bounds.
             if site.dist.support is real:
+                # Any unbounded distribution
+                pass
+            elif site.dist.support is simplex:
+                # Dirichlet distribution.
+                # When using a Dirichlet proposal, it should be fine.
                 pass
             elif isinstance(site.dist.support, interval):
                 # Reflect the value if it goes out of bounds
@@ -75,6 +78,10 @@ class Step():
                 w = hi - lo
                 y = (v -lo) % (2 * w)
                 v = lo + torch.where(y <= w, y, 2 * w - y)
+            elif isinstance(site.dist.support, integer_interval):
+                # Categorial distribution.
+                # When using a Categorical proposal, it should be fine.
+                pass
             else:
                 raise ValueError(f"Unsupported distribution support for site '{site.name}'.")
             

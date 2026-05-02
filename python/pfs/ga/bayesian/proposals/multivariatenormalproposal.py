@@ -153,7 +153,7 @@ class MultivariateNormalProposal(Proposal):
             if self.__eps is not None:
                 cov = cov + self.__eps**2
 
-            return MultivariateNormal(self.__loc_zero, self.__mcmc_scale * self.__mcmc_scale * cov)
+            return MultivariateNormal(self.__loc, self.__mcmc_scale * self.__mcmc_scale * cov)
         else:
             chol = self.__chol
 
@@ -162,5 +162,4 @@ class MultivariateNormalProposal(Proposal):
             # else:
             #     chol = self.__chol
 
-            # TODO: multiply by 2.38 * sqrt(dim) to get the right covariance matrix
-            return MultivariateNormal(self.__loc_zero, scale_tril=(self.__mcmc_scale * chol))
+            return MultivariateNormal(self.__loc, scale_tril=(self.__mcmc_scale * chol))
