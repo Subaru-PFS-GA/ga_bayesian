@@ -102,4 +102,236 @@
 
 \end{frame}
 
+\begin{frame}{Generative process}
+\end{frame}
+
+\begin{frame}{Mixture model example}
+
+    \begin{center}
+        \begin{tikzpicture}[
+            node distance=1.5cm,
+            every node/.style={circle, draw, minimum size=0.8cm, font=\small},
+            plate/.style={rectangle, draw, dashed, inner sep=0.3cm}
+        ]
+            % Top level parameters (outside plate)
+            \node (theta1) {$\theta_1$};
+            \node (theta2) [right of=theta1] {$\theta_2$};
+            \node (w) [right of=theta2] {$w$};
+            
+            % Inside plate N
+            \node (x1) [below of=theta1] {$x_{1,i}$};
+            \node (x2) [below of=theta2] {$x_{2,i}$};
+            \node (z) [below of=w] {$z_i$};
+            
+            \node (x) [below of=x2, double] {$x_i$};
+            \node (y) [below of=x, fill=gray!30] {$y_i$};
+            
+            % Edges to z
+            \draw [-latex] (w) -- (z);
+            
+            % Edges to x1 and x2
+            \draw [-latex] (theta1) -- (x1);
+            \draw [-latex] (theta2) -- (x2);
+            
+            % Edges to gated variable x (deterministic)
+            \draw [-latex] (x1) -- (x);
+            \draw [-latex] (x2) -- (x);
+            \draw [-latex] (z) -- (x);
+            
+            % Edge to observation y
+            \draw [-latex] (x) -- (y);
+            
+            % Plate around variables inside the loop
+            \node[plate, fit=(z) (x1) (x2) (x) (y), label=below right:$N$] {};
+        \end{tikzpicture}
+    \end{center}
+
+\end{frame}
+
+\begin{frame}{Factor graph representation of the mixture model}
+
+    \begin{center}
+        \begin{tikzpicture}[
+            node distance=1cm,
+            every node/.style={circle, draw, minimum size=0.8cm, font=\small},
+            factor/.style={rectangle, draw, fill=gray!30, minimum size=0.5cm},
+            plate/.style={rectangle, draw, dashed, inner sep=0.3cm}
+        ]
+            % Top level parameters (outside plate)
+            \node (f_theta1) [factor] {$p(\theta_1)$};
+            \node (theta1) [right of=f_theta1, xshift=0.25cm] {$\theta_1$};
+            
+            \node (f_theta2) [factor, right of=theta1, xshift=0.5cm] {$p(\theta_2)$};
+            \node (theta2) [right of=f_theta2, xshift=0.25cm] {$\theta_2$};
+
+            \node (f_w) [factor, right of=theta2, xshift=0.5cm] {$p(w)$};
+            \node (w) [right of=f_w, xshift=0.25cm] {$w$};
+            
+            % Factor nodes
+            \node (f_x1) [factor, below of=theta1, yshift=-0.25cm] {$p(x_{1,i} | \theta_1)$};
+            \node (f_x2) [factor, below of=theta2, yshift=-0.25cm] {$p(x_{2,i} | \theta_2)$};
+            \node (f_z) [factor, below of=w, yshift=-0.25cm] {$p(z_i | w)$};
+            
+            % Inside plate N
+            \node (x1) [below of=f_x1] {$x_{1,i}$};
+            \node (x2) [below of=f_x2] {$x_{2,i}$};
+            \node (z) [below of=f_z] {$z_i$};
+
+            % Factor nodes
+            \node (f_x) [factor, below of=x2] {$p(x_i | z_i, x_{1,i}, x_{2,i})$};
+            
+            \node (x) [below of=f_x] {$x_i$};
+            
+            % Factor nodes
+            \node (f_y) [factor, below of=x] {$p(y_i | x_i)$};
+
+            \node (y) [below of=f_y] {$y_i$};
+            
+            % Edges to prior factor nodes
+            \draw (f_theta1) -- (theta1);
+            \draw (f_theta2) -- (theta2);
+            \draw (f_w) -- (w);
+            
+            % Edges to factor nodes
+            \draw (w) -- (f_z);
+            \draw (theta1) -- (f_x1);
+            \draw (theta2) -- (f_x2);
+            
+            % Edges from factor nodes to variables
+            \draw (f_z) -- (z);
+            \draw (f_x1) -- (x1);
+            \draw (f_x2) -- (x2);
+            \draw (f_x) -- (x);
+            \draw (x) -- (f_y);
+            \draw (f_y) -- (y);
+            \draw (z) -- (f_x);
+            \draw (x1) -- (f_x);
+            \draw (x2) -- (f_x);
+
+            % Plate around variables inside the loop
+            \node[plate, fit=(z) (x1) (x2) (x) (y) (f_z) (f_x1) (f_x2) (f_x) (f_y), label=below right:$N$] {};
+        \end{tikzpicture}
+    \end{center}
+
+\end{frame}
+
+\begin{frame}{The effect of a gating variable}
+
+    Turns edges on and off, depending on the value of the gating variable.
+
+    A factor matters only if the variable is connected—through active deterministic paths—to the part of the graph that contains observed variables.
+
+\end{frame}
+
+\begin{frame}{Bayesian network}
+\end{frame}
+
+\begin{frame}{Observed variables}
+\end{frame}
+
+\begin{frame}{Deterministic sites}
+\end{frame}
+
+\begin{frame}{Plates}
+\end{frame}
+
+\begin{frame}{Edges crossing plate boundaries}
+\end{frame}
+
+\begin{frame}{Conditionally independent variables}
+\end{frame}
+
+\begin{frame}{Markov blanket}
+
+    all stochastic factors whose arguments depend on that variable
+
+\end{frame}
+
+\begin{frame}{Bayesian Network vs factor graph}
+
+    Bayesian network: factors are implicitly represented as edges, and variables are connected to their parents.
+
+    Factor graph: factors are explicitly represented as nodes, and variables are connected to the factors they appear in.
+
+    To get the factor graph from the Bayesian network, we can introduce a factor node for each stochastic site, and connect it to the variable node of that site and to the variable nodes of its parents.
+
+\end{frame}
+
+\begin{frame}{The Markov blanket near deterministic sites}
+\end{frame}
+
+\begin{frame}{The full conditional}
+
+    Prior factors
+
+    Likelihood factors
+
+\end{frame}
+
+\begin{frame}{The full conditional near plate boundaries}
+\end{frame}
+
+\begin{frame}{The full conditional of gated variables}
+
+    \begin{equation}
+        p(x_i \mid z_i, \theta_{1:K}) = p(x_i \mid \theta_{z_i})
+    \end{equation}
+
+\end{frame}
+
+\begin{frame}{The full conditional of selector variables}
+
+    \begin{equation}
+        p(z_i \mid x_i, \theta_{1:K}) \propto 
+            p(z_i) p(x_i \mid z_i, \theta_{1:K}) =
+            p(z_i) p(x_i \mid \theta_{z_i})
+    \end{equation}
+
+\end{frame}
+
+\begin{frame}{Gibbs blocking}
+\end{frame}
+
+\begin{frame}{Proposals}
+
+    Random walk proposals vs independent proposals
+
+    Hastings correction: if the proposal distribution is not symmetric, we need to correct for the asymmetry by multiplying the acceptance probability by the ratio of the proposal probabilities.
+
+    Adaptive proposals
+
+\end{frame}
+
+\begin{frame}{Transition kernels}
+
+    Symmetric transition kernels
+
+    Non-symmetric proposal distributions
+
+    Steps and bounded distributions: how to make the proposal distribution symmetric when the support of the distribution is bounded, and the current value is near the boundary.
+
+    Stationary distribution
+
+    Hastings correction
+    
+\end{frame}
+
+\begin{frame}{Updating proposals}
+\end{frame}
+
+\begin{frame}{Proposals for discrete variables}
+\end{frame}
+
+\begin{frame}{Proposals for bounded continuous variables}
+\end{frame}
+
+\begin{frame}{Integrating out discrete sites and latent variables}
+\end{frame}
+
+\begin{frame}{Posterior predictive sampling of latent variables}
+
+    How can we get $z$, $x_1$ and $x_2$ from a NUTS sampler that only samples $\theta_1$, $\theta_2$ and $w$?
+
+\end{frame}
+
 \end{document}
