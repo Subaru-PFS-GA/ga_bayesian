@@ -1,7 +1,9 @@
 import torch
 
 class Defaults():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     dtype = torch.float32
+    
     proposal_eps = 1e-4
     proposal_gamma = 0.99
     proposal_dirichlet_max_concentration = 5.0

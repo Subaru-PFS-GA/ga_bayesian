@@ -45,7 +45,7 @@ class GibbsKernel(Kernel):
     def accept(self, init_state, step_state, lp_init, lp_final):
         # Assume final_state contains only the variables that are being updated
         lp_accept = lp_final - lp_init
-        mask = torch.log(torch.rand(size=lp_accept.shape)) < lp_accept
+        mask = torch.log(torch.rand(size=lp_accept.shape, dtype=lp_accept.dtype, device=lp_accept.device)) < lp_accept
 
         for key in step_state:
             value = step_state[key]

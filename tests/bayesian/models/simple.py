@@ -15,21 +15,26 @@ class Simple(Model):
     def model(self, context):
         N = self.N
 
-        theta = context.sample('theta', Normal(0.0, 1.0))
+        theta = context.sample('theta', Normal(context.tensor(0.0), context.tensor(1.0)))
 
         with context.plate('n', N):
-            x = context.sample('x', Normal(theta, 1.0))
-            obs = context.sample('obs', Normal(x, 0.5), observed=True)
+            x = context.sample('x', Normal(theta, context.tensor(1.0)))
+            obs = context.sample('obs', Normal(x, context.tensor(0.5)), observed=True)
 
     def step(self, context):
         context.step(
             'theta',
             [ self.theta ],
-            proposal = NormalProposal(self.theta.value(context.state), 0.5)
+            proposal = NormalProposal(
+                self.theta.value(context.state),
+                context.tensor(0.5))
         )
 
         context.step(
             'x',
             [ self.x ],
-            proposal = NormalProposal(self.x.value(context.state), 1.0)
+            proposal = NormalProposal(
+                self.x.value(context.state),
+                context.tensor(1.0)
+            )
         )

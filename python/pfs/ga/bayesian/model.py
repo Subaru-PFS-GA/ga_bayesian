@@ -137,6 +137,13 @@ class Model():
 
         #endregion
 
+        def tensor(self, value):
+            """
+            Convert a value to a tensor on the current device using the default dtype.
+            """
+
+            return torch.as_tensor(value, dtype=self.model.dtype, device=self.model.device)
+
         def sample(self, name, dist, observed=False):
             raise NotImplementedError()
         
@@ -628,8 +635,9 @@ class Model():
             site = self.model.sites.get(name)
             return site.value(self.state)
 
-    def __init__(self, dtype=Defaults.dtype):
+    def __init__(self, dtype=Defaults.dtype, device=Defaults.device):
         self.__dtype = dtype
+        self.__device = device
 
         self.__batch_shape = ()
         self.__sites = OrderedDict()
@@ -644,6 +652,11 @@ class Model():
     
     dtype = property(__get_dtype)
 
+    def __get_device(self):
+        return self.__device
+    
+    device = property(__get_device)
+    
     def __get_sites(self):
         return self.__sites
     
@@ -697,6 +710,13 @@ class Model():
             self.step(build_context)
 
         return build_context
+    
+    def tensor(self, value):
+        """
+        Convert a value to a tensor on the current device using the default dtype.
+        """
+
+        return torch.as_tensor(value, dtype=self.__dtype, device=self.__device)
     
     def sample(self, state=Constants.MISSING):
         state = state if state is not Constants.MISSING else {}
